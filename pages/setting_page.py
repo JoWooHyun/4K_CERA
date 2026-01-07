@@ -3,14 +3,16 @@ VERICOM DLP 3D Printer GUI - Setting Page
 LED Power 및 Blade 설정 페이지
 """
 
+import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame
+    QPushButton, QFrame, QFileDialog
 )
 from PySide6.QtCore import Signal, Qt
 
 from pages.base_page import BasePage
 from components.numeric_keypad import NumericKeypad
+from controllers.settings_manager import get_settings
 from styles.colors import Colors
 from styles.fonts import Fonts
 from styles.stylesheets import (
@@ -341,8 +343,188 @@ class BladePanel(QFrame):
         self.speed_btn.setText(f"{self._speed_value} mm/s")
 
 
+class MaskPanel(QFrame):
+    """MASK 설정 패널"""
+
+    mask_changed = Signal(bool, str)  # (enabled, file_path)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self._settings = get_settings()
+        self._mask_enabled = self._settings.get_mask_enabled()
+        self._mask_path = self._settings.get_mask_file_path()
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """UI 구성"""
+        self.setStyleSheet(get_axis_panel_style())
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # 타이틀
+        self.title_label = QLabel("MASK SET")
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {Colors.NAVY};
+                font-size: 18px;
+                font-weight: 700;
+                background-color: transparent;
+                border: none;
+            }}
+        """)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_label)
+
+        layout.addStretch(1)
+
+        # 파일 경로 표시
+        path_label = QLabel("File")
+        path_label.setAlignment(Qt.AlignCenter)
+        path_label.setStyleSheet(f"""
+            QLabel {{
+                color: {Colors.TEXT_SECONDARY};
+                font-size: 14px;
+                background-color: transparent;
+                border: none;
+            }}
+        """)
+        layout.addWidget(path_label)
+
+        # 파일 선택 버튼
+        self.file_btn = QPushButton(self._get_filename_display())
+        self.file_btn.setFixedSize(200, 50)
+        self.file_btn.setCursor(Qt.PointingHandCursor)
+        self._update_file_btn_style()
+        self.file_btn.clicked.connect(self._on_file_click)
+
+        file_container = QHBoxLayout()
+        file_container.addStretch()
+        file_container.addWidget(self.file_btn)
+        file_container.addStretch()
+        layout.addLayout(file_container)
+
+        layout.addStretch(1)
+
+        # ON/OFF 토글 버튼
+        btn_layout = QHBoxLayout()
+        btn_layout.setAlignment(Qt.AlignCenter)
+
+        self.btn_toggle = QPushButton("ON" if self._mask_enabled else "OFF")
+        self.btn_toggle.setFixedSize(120, 50)
+        self.btn_toggle.setCursor(Qt.PointingHandCursor)
+        self.btn_toggle.setFont(Fonts.h3())
+        self.btn_toggle.clicked.connect(self._on_toggle_click)
+        self._update_toggle_style()
+
+        btn_layout.addWidget(self.btn_toggle)
+        layout.addLayout(btn_layout)
+
+        layout.addStretch(1)
+
+    def _get_filename_display(self) -> str:
+        """파일명 표시용 문자열"""
+        if self._mask_path and os.path.exists(self._mask_path):
+            filename = os.path.basename(self._mask_path)
+            if len(filename) > 15:
+                return filename[:12] + "..."
+            return filename
+        return "Select File..."
+
+    def _update_file_btn_style(self):
+        """파일 버튼 스타일 업데이트"""
+        has_file = self._mask_path and os.path.exists(self._mask_path)
+        border_color = Colors.CYAN if has_file else Colors.BORDER
+        text_color = Colors.NAVY if has_file else Colors.TEXT_SECONDARY
+
+        self.file_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Colors.BG_SECONDARY};
+                border: 2px solid {border_color};
+                border-radius: {Radius.MD}px;
+                color: {text_color};
+                font-size: 14px;
+                font-weight: 600;
+            }}
+            QPushButton:pressed {{
+                background-color: {Colors.BG_TERTIARY};
+            }}
+        """)
+
+    def _update_toggle_style(self):
+        """토글 버튼 스타일 업데이트"""
+        if self._mask_enabled:
+            self.btn_toggle.setText("ON")
+            self.btn_toggle.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Colors.CYAN};
+                    border: none;
+                    border-radius: {Radius.MD}px;
+                    color: {Colors.WHITE};
+                    font-weight: 600;
+                }}
+                QPushButton:pressed {{
+                    background-color: #0891B2;
+                }}
+            """)
+        else:
+            self.btn_toggle.setText("OFF")
+            self.btn_toggle.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Colors.BG_PRIMARY};
+                    border: 2px solid {Colors.BORDER};
+                    border-radius: {Radius.MD}px;
+                    color: {Colors.TEXT_PRIMARY};
+                    font-weight: 600;
+                }}
+                QPushButton:pressed {{
+                    background-color: {Colors.BG_SECONDARY};
+                }}
+            """)
+
+    def _on_file_click(self):
+        """파일 선택 클릭"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.window(),
+            "MASK 파일 선택",
+            "",
+            "BMP Files (*.bmp);;All Files (*)"
+        )
+
+        if file_path:
+            self._mask_path = file_path
+            self._settings.set_mask_file_path(file_path)
+            self.file_btn.setText(self._get_filename_display())
+            self._update_file_btn_style()
+            self.mask_changed.emit(self._mask_enabled, self._mask_path)
+
+    def _on_toggle_click(self):
+        """ON/OFF 토글"""
+        if not self._mask_path or not os.path.exists(self._mask_path):
+            # 파일이 없으면 파일 선택 먼저
+            self._on_file_click()
+            if not self._mask_path:
+                return
+
+        self._mask_enabled = not self._mask_enabled
+        self._settings.set_mask_enabled(self._mask_enabled)
+        self._update_toggle_style()
+        self.mask_changed.emit(self._mask_enabled, self._mask_path)
+
+    def get_mask_enabled(self) -> bool:
+        """MASK 활성화 여부 반환"""
+        return self._mask_enabled
+
+    def get_mask_path(self) -> str:
+        """MASK 파일 경로 반환"""
+        return self._mask_path
+
+
 class SettingPage(BasePage):
-    """설정 페이지 (LED Power + Blade)"""
+    """설정 페이지 (LED Power + Blade + MASK)"""
 
     # LED 시그널
     led_power_changed = Signal(int)
@@ -354,15 +536,18 @@ class SettingPage(BasePage):
     blade_move = Signal()  # MOVE 버튼 클릭
     blade_home = Signal()
 
+    # MASK 시그널
+    mask_changed = Signal(bool, str)  # (enabled, file_path)
+
     def __init__(self, parent=None):
         super().__init__("Setting", show_back=True, parent=parent)
         self._setup_content()
 
     def _setup_content(self):
         """콘텐츠 구성"""
-        # 2열 레이아웃
+        # 3열 레이아웃
         panels_layout = QHBoxLayout()
-        panels_layout.setSpacing(20)
+        panels_layout.setSpacing(15)
 
         # LED Power 패널
         self.led_panel = LEDPowerPanel()
@@ -376,8 +561,13 @@ class SettingPage(BasePage):
         self.blade_panel.blade_move.connect(self.blade_move.emit)
         self.blade_panel.home_axis.connect(self.blade_home.emit)
 
+        # MASK 패널
+        self.mask_panel = MaskPanel()
+        self.mask_panel.mask_changed.connect(self.mask_changed.emit)
+
         panels_layout.addWidget(self.led_panel)
         panels_layout.addWidget(self.blade_panel)
+        panels_layout.addWidget(self.mask_panel)
 
         self.content_layout.addLayout(panels_layout)
 
@@ -396,3 +586,11 @@ class SettingPage(BasePage):
     def set_blade_speed(self, value: int):
         """Blade 속도 값 설정"""
         self.blade_panel.set_speed(value)
+
+    def get_mask_enabled(self) -> bool:
+        """MASK 활성화 여부 반환"""
+        return self.mask_panel.get_mask_enabled()
+
+    def get_mask_path(self) -> str:
+        """MASK 파일 경로 반환"""
+        return self.mask_panel.get_mask_path()

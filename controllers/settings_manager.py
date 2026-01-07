@@ -15,6 +15,13 @@ SETTINGS_FILE = os.path.join(SETTINGS_DIR, "settings.json")
 
 
 @dataclass
+class MaskSettings:
+    """MASK 관련 설정"""
+    enabled: bool = False       # MASK 적용 여부
+    file_path: str = ""         # MASK BMP 파일 경로
+
+
+@dataclass
 class PrintSettings:
     """프린트 관련 설정"""
     led_power: int = 43         # LED 파워 (9-100%, 1023=100%, 440=43%)
@@ -25,12 +32,15 @@ class PrintSettings:
 class AppSettings:
     """앱 전체 설정"""
     print_settings: PrintSettings = None
+    mask_settings: MaskSettings = None
     language: str = "en"        # 언어 설정
     theme: str = "Light"        # 테마 설정
 
     def __post_init__(self):
         if self.print_settings is None:
             self.print_settings = PrintSettings()
+        if self.mask_settings is None:
+            self.mask_settings = MaskSettings()
 
 
 class SettingsManager:
@@ -75,6 +85,13 @@ class SettingsManager:
                 blade_speed=print_data.get('blade_speed', 30)
             )
 
+            # MaskSettings 로드
+            mask_data = data.get('mask_settings', {})
+            self._settings.mask_settings = MaskSettings(
+                enabled=mask_data.get('enabled', False),
+                file_path=mask_data.get('file_path', '')
+            )
+
             # 기타 설정 로드
             self._settings.language = data.get('language', 'en')
             self._settings.theme = data.get('theme', 'Light')
@@ -93,6 +110,7 @@ class SettingsManager:
         try:
             data = {
                 'print_settings': asdict(self._settings.print_settings),
+                'mask_settings': asdict(self._settings.mask_settings),
                 'language': self._settings.language,
                 'theme': self._settings.theme
             }
@@ -151,6 +169,26 @@ class SettingsManager:
         self._settings.theme = theme
         self.save()
 
+    # ==================== MASK ====================
+
+    def get_mask_enabled(self) -> bool:
+        """MASK 적용 여부 반환"""
+        return self._settings.mask_settings.enabled
+
+    def set_mask_enabled(self, enabled: bool):
+        """MASK 적용 여부 설정"""
+        self._settings.mask_settings.enabled = enabled
+        self.save()
+
+    def get_mask_file_path(self) -> str:
+        """MASK 파일 경로 반환"""
+        return self._settings.mask_settings.file_path
+
+    def set_mask_file_path(self, path: str):
+        """MASK 파일 경로 설정"""
+        self._settings.mask_settings.file_path = path
+        self.save()
+
     # ==================== Generic get/set ====================
 
     def get(self, key: str, default=None):
@@ -163,6 +201,10 @@ class SettingsManager:
             return self._settings.print_settings.led_power
         elif key == "blade_speed":
             return self._settings.print_settings.blade_speed
+        elif key == "mask_enabled":
+            return self._settings.mask_settings.enabled
+        elif key == "mask_file_path":
+            return self._settings.mask_settings.file_path
         return default
 
     def set(self, key: str, value):
@@ -175,6 +217,10 @@ class SettingsManager:
             self._settings.print_settings.led_power = value
         elif key == "blade_speed":
             self._settings.print_settings.blade_speed = value
+        elif key == "mask_enabled":
+            self._settings.mask_settings.enabled = value
+        elif key == "mask_file_path":
+            self._settings.mask_settings.file_path = value
         self.save()
 
 

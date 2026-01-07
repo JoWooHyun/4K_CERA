@@ -8,6 +8,8 @@ from PySide6.QtWidgets import QMainWindow, QLabel, QApplication
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap, QImage, QPainter, QColor
 
+from controllers.settings_manager import get_settings
+
 # 로고 이미지 경로
 LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "VERICOM_LOGO.png")
 # 테스트 이미지 경로 (1.png)
@@ -21,9 +23,9 @@ class ProjectorWindow(QMainWindow):
     두 번째 모니터에 레이어 이미지를 투영
     """
 
-    # 프로젝터 해상도
-    PROJECTOR_WIDTH = 1920
-    PROJECTOR_HEIGHT = 1080
+    # 프로젝터 해상도 (4K)
+    PROJECTOR_WIDTH = 3840
+    PROJECTOR_HEIGHT = 2160
 
     def __init__(self, screen_index: int = 1, parent=None):
         """
@@ -35,9 +37,12 @@ class ProjectorWindow(QMainWindow):
 
         self.screen_index = screen_index
         self._current_pixmap: QPixmap = None
+        self._mask_pixmap: QPixmap = None
+        self._mask_enabled: bool = False
 
         self._setup_ui()
         self._setup_window()
+        self._load_mask()
 
     def _setup_ui(self):
         """UI 설정"""
@@ -65,6 +70,74 @@ class ProjectorWindow(QMainWindow):
         # 커서 숨김
         self.setCursor(Qt.BlankCursor)
 
+    def _load_mask(self):
+        """설정에서 MASK 로드"""
+        settings = get_settings()
+        self._mask_enabled = settings.get_mask_enabled()
+        mask_path = settings.get_mask_file_path()
+
+        if self._mask_enabled and mask_path and os.path.exists(mask_path):
+            self._mask_pixmap = QPixmap(mask_path)
+            if self._mask_pixmap.isNull():
+                print(f"[Projector] MASK 로드 실패: {mask_path}")
+                self._mask_pixmap = None
+                self._mask_enabled = False
+            else:
+                print(f"[Projector] MASK 로드 완료: {self._mask_pixmap.width()}x{self._mask_pixmap.height()}")
+        else:
+            self._mask_pixmap = None
+            if self._mask_enabled:
+                print(f"[Projector] MASK 파일 없음: {mask_path}")
+
+    def reload_mask(self):
+        """MASK 설정 다시 로드 (설정 변경 시 호출)"""
+        self._load_mask()
+
+    def set_mask_enabled(self, enabled: bool):
+        """MASK 적용 여부 설정"""
+        self._mask_enabled = enabled
+        if enabled and self._mask_pixmap is None:
+            self._load_mask()
+
+    def _apply_mask(self, pixmap: QPixmap) -> QPixmap:
+        """
+        이미지에 MASK 적용
+
+        Args:
+            pixmap: 원본 이미지
+
+        Returns:
+            MASK가 적용된 이미지
+        """
+        if not self._mask_enabled or self._mask_pixmap is None:
+            return pixmap
+
+        if pixmap is None or pixmap.isNull():
+            return pixmap
+
+        # MASK 크기 조정 (필요 시)
+        mask = self._mask_pixmap
+        if mask.size() != pixmap.size():
+            mask = self._mask_pixmap.scaled(
+                pixmap.size(),
+                Qt.IgnoreAspectRatio,
+                Qt.FastTransformation
+            )
+
+        # 결과 이미지 생성
+        result = QPixmap(pixmap.size())
+        result.fill(QColor(0, 0, 0))
+
+        # MASK를 알파 채널로 사용하여 합성
+        painter = QPainter(result)
+        painter.setCompositionMode(QPainter.CompositionMode_Source)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+        painter.drawPixmap(0, 0, mask)
+        painter.end()
+
+        return result
+
     def show_on_screen(self, screen_index: int = None):
         """
         지정된 스크린에 전체화면으로 표시
@@ -90,12 +163,13 @@ class ProjectorWindow(QMainWindow):
             print(f"[Projector] 스크린 {self.screen_index} 없음, 기본 스크린 사용")
             self.showFullScreen()
 
-    def show_image(self, pixmap: QPixmap):
+    def show_image(self, pixmap: QPixmap, apply_mask: bool = True):
         """
         이미지 표시
 
         Args:
             pixmap: 표시할 QPixmap
+            apply_mask: MASK 적용 여부 (기본값 True)
         """
         if pixmap is None or pixmap.isNull():
             self.clear_screen()
@@ -103,8 +177,13 @@ class ProjectorWindow(QMainWindow):
 
         self._current_pixmap = pixmap
 
+        # MASK 적용
+        display_pixmap = pixmap
+        if apply_mask:
+            display_pixmap = self._apply_mask(pixmap)
+
         # 윈도우 크기에 맞게 스케일링
-        scaled_pixmap = pixmap.scaled(
+        scaled_pixmap = display_pixmap.scaled(
             self.image_label.size(),
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation

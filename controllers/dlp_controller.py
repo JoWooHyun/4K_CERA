@@ -231,7 +231,14 @@ class DLPController:
 
             # 응답 읽기
             time.sleep(0.1)
-            response = self._serial.readline().decode('ascii').strip()
+            raw_response = self._serial.readline()
+
+            # 응답 디코딩 (바이너리 데이터 처리)
+            try:
+                response = raw_response.decode('ascii').strip()
+            except UnicodeDecodeError:
+                # 바이너리 응답인 경우 latin-1로 디코딩 (모든 바이트 허용)
+                response = raw_response.decode('latin-1').strip()
 
             return response
 

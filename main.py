@@ -12,6 +12,10 @@ Mode: Kiosk/Fullscreen
 import sys
 import os
 
+# 라즈베리파이 Wayland 호환성 - X11(xcb) 백엔드 사용
+if 'QT_QPA_PLATFORM' not in os.environ:
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+
 # 프로젝트 경로 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
