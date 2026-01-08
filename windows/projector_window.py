@@ -2,7 +2,7 @@
 VERICOM DLP 3D Printer - Projector Window
 두 번째 모니터(프로젝터)에 이미지를 표시하는 전체화면 윈도우
 
-Note: vgui와 동일한 단순 버전 (MASK 기능 제거)
+Note: DF10 광원용 - HDMI 입력 해상도 1920x1080 @ 60Hz
 """
 
 import os
@@ -23,9 +23,9 @@ class ProjectorWindow(QMainWindow):
     두 번째 모니터에 레이어 이미지를 투영
     """
 
-    # 프로젝터 해상도 (4K)
-    PROJECTOR_WIDTH = 3840
-    PROJECTOR_HEIGHT = 2160
+    # 프로젝터 해상도 (DF10: 1920x1080 @ 60Hz)
+    PROJECTOR_WIDTH = 1920
+    PROJECTOR_HEIGHT = 1080
 
     def __init__(self, screen_index: int = 1, parent=None):
         """
@@ -92,13 +92,12 @@ class ProjectorWindow(QMainWindow):
             print(f"[Projector] 스크린 {self.screen_index} 없음, 기본 스크린 사용")
             self.showFullScreen()
 
-    def show_image(self, pixmap: QPixmap, apply_mask: bool = True):
+    def show_image(self, pixmap: QPixmap):
         """
         이미지 표시
 
         Args:
             pixmap: 표시할 QPixmap
-            apply_mask: MASK 적용 여부 (현재 미사용, 호환성 유지)
         """
         if pixmap is None or pixmap.isNull():
             self.clear_screen()
@@ -135,12 +134,9 @@ class ProjectorWindow(QMainWindow):
 
     def show_white_screen(self):
         """흰색 화면 표시 (트레이 청소용)"""
-        # 실제 화면 크기에 맞춰 생성 (스케일링 없이 전체 화면 채움)
-        width = self.image_label.width() or self.PROJECTOR_WIDTH
-        height = self.image_label.height() or self.PROJECTOR_HEIGHT
-        pixmap = QPixmap(width, height)
+        pixmap = QPixmap(self.PROJECTOR_WIDTH, self.PROJECTOR_HEIGHT)
         pixmap.fill(QColor(255, 255, 255))
-        self.image_label.setPixmap(pixmap)  # 스케일링 없이 직접 설정
+        self.show_image(pixmap)
 
     def show_test_image(self, image_path: str = None):
         """
