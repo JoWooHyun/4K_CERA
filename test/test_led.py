@@ -36,9 +36,9 @@ def find_serial_port():
     return None
 
 
-def send_command(ser, cmd, name="", wait_time=0.3):
+def send_command(ser, cmd, name="", wait_time=1.0):
     """명령 전송 및 응답 수신"""
-    print(f"\n[TX] {name}: {cmd.hex(' ')}")
+    print(f"[TX] {name}: {cmd.hex(' ')}")
 
     # 버퍼 클리어
     ser.reset_input_buffer()
@@ -48,17 +48,16 @@ def send_command(ser, cmd, name="", wait_time=0.3):
     ser.write(cmd)
     ser.flush()
 
-    # 응답 대기
-    time.sleep(wait_time)
+    # 응답 대기 (여러 번 시도)
+    for i in range(10):  # 최대 1초 대기
+        time.sleep(0.1)
+        if ser.in_waiting > 0:
+            response = ser.read(ser.in_waiting)
+            print(f"[RX] {response.hex(' ')}")
+            return response
 
-    # 응답 읽기
-    if ser.in_waiting > 0:
-        response = ser.read(ser.in_waiting)
-        print(f"[RX] {response.hex(' ')}")
-        return response
-    else:
-        print("[RX] 응답 없음")
-        return None
+    print("[RX] 응답 없음")
+    return None
 
 
 def main():
@@ -101,33 +100,29 @@ def main():
         # 0. 먼저 상태 확인
         print("\n[0] 상태 확인")
         send_command(ser, CMD_QUERY, "QUERY")
-        time.sleep(0.5)
 
-        # 1. 먼저 끄기 (이전 상태 초기화)
-        print("\n[1] 초기화 - Boot OFF")
-        send_command(ser, CMD_BOOT_OFF, "BOOT_OFF")
-        time.sleep(1)
-
-        # 2. Boot ON (팬 켜기)
-        print("\n[2] Boot ON (팬 시작)")
+        # 1. Boot ON (팬 켜기) - 프로젝터 초기화
+        print("\n[1] Boot ON (팬 시작, 프로젝터 초기화)")
         send_command(ser, CMD_BOOT_ON, "BOOT_ON")
-        time.sleep(1)
 
-        # 3. LED ON
-        print("\n[3] LED ON")
-        send_command(ser, CMD_LED_ON, "LED_ON")
-
-        # 3초 대기
-        print("\n[*] 3초 대기...")
+        # 프로젝터 초기화 대기 (3초)
+        print("[*] 프로젝터 초기화 대기 3초...")
         time.sleep(3)
 
-        # 4. LED OFF
-        print("\n[4] LED OFF")
-        send_command(ser, CMD_LED_OFF, "LED_OFF")
-        time.sleep(0.5)
+        # 2. LED ON
+        print("\n[2] LED ON")
+        send_command(ser, CMD_LED_ON, "LED_ON")
 
-        # 5. Boot OFF (팬 끄기)
-        print("\n[5] Boot OFF (팬 종료)")
+        # LED 켜진 상태 유지 (5초)
+        print("\n[*] LED 5초 유지...")
+        time.sleep(5)
+
+        # 3. LED OFF
+        print("\n[3] LED OFF")
+        send_command(ser, CMD_LED_OFF, "LED_OFF")
+
+        # 4. Boot OFF (팬 끄기)
+        print("\n[4] Boot OFF (팬 종료)")
         send_command(ser, CMD_BOOT_OFF, "BOOT_OFF")
 
         print("\n" + "="*50)
