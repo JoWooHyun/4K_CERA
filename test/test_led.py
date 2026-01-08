@@ -36,7 +36,7 @@ def find_serial_port():
     return None
 
 
-def send_command(ser, cmd, name=""):
+def send_command(ser, cmd, name="", wait_time=0.3):
     """명령 전송 및 응답 수신"""
     print(f"\n[TX] {name}: {cmd.hex(' ')}")
 
@@ -48,8 +48,8 @@ def send_command(ser, cmd, name=""):
     ser.write(cmd)
     ser.flush()
 
-    # 응답 대기 (500ms)
-    time.sleep(0.5)
+    # 응답 대기
+    time.sleep(wait_time)
 
     # 응답 읽기
     if ser.in_waiting > 0:
@@ -86,32 +86,48 @@ def main():
             stopbits=serial.STOPBITS_ONE,
             timeout=1
         )
+
+        # 연결 직후 버퍼 클리어 및 안정화 대기
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        time.sleep(0.5)
+
         print("연결 성공!")
 
         print("\n" + "="*50)
         print("LED 제어 테스트")
         print("="*50)
 
-        # 1. Boot ON (팬 켜기)
-        print("\n[1] Boot ON (팬 시작)")
+        # 0. 먼저 상태 확인
+        print("\n[0] 상태 확인")
+        send_command(ser, CMD_QUERY, "QUERY")
+        time.sleep(0.5)
+
+        # 1. 먼저 끄기 (이전 상태 초기화)
+        print("\n[1] 초기화 - Boot OFF")
+        send_command(ser, CMD_BOOT_OFF, "BOOT_OFF")
+        time.sleep(1)
+
+        # 2. Boot ON (팬 켜기)
+        print("\n[2] Boot ON (팬 시작)")
         send_command(ser, CMD_BOOT_ON, "BOOT_ON")
         time.sleep(1)
 
-        # 2. LED ON
-        print("\n[2] LED ON")
+        # 3. LED ON
+        print("\n[3] LED ON")
         send_command(ser, CMD_LED_ON, "LED_ON")
 
         # 3초 대기
         print("\n[*] 3초 대기...")
         time.sleep(3)
 
-        # 3. LED OFF
-        print("\n[3] LED OFF")
+        # 4. LED OFF
+        print("\n[4] LED OFF")
         send_command(ser, CMD_LED_OFF, "LED_OFF")
-        time.sleep(1)
+        time.sleep(0.5)
 
-        # 4. Boot OFF (팬 끄기)
-        print("\n[4] Boot OFF (팬 종료)")
+        # 5. Boot OFF (팬 끄기)
+        print("\n[5] Boot OFF (팬 종료)")
         send_command(ser, CMD_BOOT_OFF, "BOOT_OFF")
 
         print("\n" + "="*50)
@@ -127,7 +143,9 @@ def main():
         if 'ser' in locals():
             # 안전하게 종료
             ser.write(CMD_LED_OFF)
+            time.sleep(0.1)
             ser.write(CMD_BOOT_OFF)
+            time.sleep(0.1)
             ser.close()
 
 
