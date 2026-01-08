@@ -135,9 +135,12 @@ class ProjectorWindow(QMainWindow):
 
     def show_white_screen(self):
         """흰색 화면 표시 (트레이 청소용)"""
-        pixmap = QPixmap(self.PROJECTOR_WIDTH, self.PROJECTOR_HEIGHT)
+        # 실제 화면 크기에 맞춰 생성 (스케일링 없이 전체 화면 채움)
+        width = self.image_label.width() or self.PROJECTOR_WIDTH
+        height = self.image_label.height() or self.PROJECTOR_HEIGHT
+        pixmap = QPixmap(width, height)
         pixmap.fill(QColor(255, 255, 255))
-        self.show_image(pixmap)
+        self.image_label.setPixmap(pixmap)  # 스케일링 없이 직접 설정
 
     def show_test_image(self, image_path: str = None):
         """

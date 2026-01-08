@@ -291,6 +291,11 @@ class DLPController:
             print("[DLP] ✅ 프로젝터 ON 성공 (시뮬레이션)")
             return True
 
+        # 이미 켜져 있으면 성공으로 처리
+        if self._projector_on:
+            print("[DLP] ✅ 프로젝터 이미 ON 상태")
+            return True
+
         # HEX 명령 사용 (팬 ON, LED OFF 상태)
         response = self._send_hex_command(DF10HexCommand.BOOT_ON)
 
@@ -318,6 +323,11 @@ class DLPController:
         if self.simulation:
             self._projector_on = False
             print("[DLP] ✅ 프로젝터 OFF 성공 (시뮬레이션)")
+            return True
+
+        # 이미 꺼져 있으면 성공으로 처리
+        if not self._projector_on:
+            print("[DLP] ✅ 프로젝터 이미 OFF 상태")
             return True
 
         # 먼저 LED OFF
