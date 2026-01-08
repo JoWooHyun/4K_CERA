@@ -504,23 +504,26 @@ class MainWindow(QMainWindow):
         """프린트 완료"""
         print("[Print] 프린트 완료!")
         if self.projector_window:
-            self.projector_window.close()
+            self.projector_window.clear_screen()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
         self.print_progress_page.show_completed()
 
     def _on_print_stopped_by_worker(self):
         """워커에 의한 프린트 정지"""
         print("[Print] 프린트 정지됨")
         if self.projector_window:
-            self.projector_window.close()
+            self.projector_window.clear_screen()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
         self.print_progress_page.show_stopped()
 
     def _on_print_error(self, message: str):
         """프린트 오류"""
         print(f"[Print] 오류: {message}")
 
-        # 프로젝터 윈도우 닫기
+        # 프로젝터 윈도우 숨기기
         if self.projector_window:
-            self.projector_window.close()
+            self.projector_window.clear_screen()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
 
         # PrintProgressPage에서 에러 표시 및 종료 버튼 표시
         self.print_progress_page.show_error(message)
@@ -588,7 +591,7 @@ class MainWindow(QMainWindow):
 
         if self.projector_window:
             self.projector_window.clear_screen()
-            self.projector_window.close()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
 
     def _start_clean(self, time: float):
         """클리닝 시작"""
@@ -622,7 +625,7 @@ class MainWindow(QMainWindow):
 
         if self.projector_window:
             self.projector_window.clear_screen()
-            self.projector_window.close()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
 
     # ==================== Setting 페이지 제어 ====================
 
@@ -659,7 +662,7 @@ class MainWindow(QMainWindow):
 
         if self.projector_window:
             self.projector_window.clear_screen()
-            self.projector_window.close()
+            self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
 
     def _setting_blade_home(self):
         """Setting 페이지에서 Blade Home"""

@@ -219,12 +219,15 @@ class DLPController:
             return None
 
         try:
-            # 버퍼 클리어
+            # 버퍼 클리어 (입력/출력 모두)
             self._serial.reset_input_buffer()
+            self._serial.reset_output_buffer()
+            time.sleep(0.05)  # 버퍼 클리어 안정화
 
             # 명령 전송 (CR+LF 추가)
             full_command = f"{command}\r\n"
             self._serial.write(full_command.encode('ascii'))
+            self._serial.flush()  # 출력 버퍼 비우기
 
             if not expect_response:
                 return None
@@ -257,8 +260,13 @@ class DLPController:
             return None
 
         try:
+            # 버퍼 클리어 (입력/출력 모두)
             self._serial.reset_input_buffer()
+            self._serial.reset_output_buffer()
+            time.sleep(0.05)  # 버퍼 클리어 안정화
+
             self._serial.write(command)
+            self._serial.flush()  # 출력 버퍼 비우기
 
             if not expect_response:
                 return None

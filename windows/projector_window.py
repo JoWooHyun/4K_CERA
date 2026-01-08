@@ -210,10 +210,10 @@ class ProjectorWindow(QMainWindow):
         self.image_label.setStyleSheet("background-color: black;")
 
     def show_white_screen(self):
-        """흰색 화면 표시 (트레이 청소용)"""
+        """흰색 화면 표시 (트레이 청소용) - MASK 미적용"""
         pixmap = QPixmap(self.PROJECTOR_WIDTH, self.PROJECTOR_HEIGHT)
         pixmap.fill(QColor(255, 255, 255))
-        self.show_image(pixmap)
+        self.show_image(pixmap, apply_mask=False)  # 클리닝은 MASK 미적용
 
     def show_test_image(self, image_path: str = None):
         """
