@@ -10,7 +10,8 @@ VERICOM 4K DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플�
 |------|--------------|----------------|
 | 컨트롤러 | DLPC6421 | DLPC6540 |
 | 통신 방식 | USB I2C (Cypress) | Serial UART (9600bps) |
-| 해상도 | 1920 x 1080 (FHD) | 3840 x 2160 (4K) |
+| HDMI 입력 해상도 | 1920 x 1080 @ 60Hz | 1920 x 1080 @ 60Hz |
+| DMD 출력 해상도 | 1920 x 1080 (FHD) | 3840 x 2160 (4K) |
 | DMD | 0.47" FHD | 0.47" 4K |
 | LED | 내장 UV | Luminus CBM-25X-UV |
 | 파장 | - | 385nm (DF10E) / 405nm (DF10Z) |
@@ -21,7 +22,8 @@ VERICOM 4K DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플�
 |------|------|
 | 프레임워크 | PySide6 (Qt for Python) |
 | GUI 해상도 | 1024 x 600 px |
-| 프로젝터 해상도 | 3840 x 2160 px (4K) |
+| HDMI 입력 해상도 | 1920 x 1080 @ 60Hz |
+| DMD 출력 해상도 | 3840 x 2160 px (4K) |
 | 타겟 디바이스 | 7인치 HDMI Touch LCD |
 | 보드 | CM4 + Manta M8P 2.0 |
 | 프로젝터 | DF10 0.47 4K (DLPC6540) |
