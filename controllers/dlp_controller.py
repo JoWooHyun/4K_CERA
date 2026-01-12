@@ -282,8 +282,13 @@ class DLPController:
 
     # ==================== 프로젝터 제어 ====================
 
-    def projector_on(self) -> bool:
-        """프로젝터 켜기 (팬 가동 시작)"""
+    def projector_on(self, wait_time: float = 3.0) -> bool:
+        """
+        프로젝터 켜기 (팬 가동 시작, Boot ON)
+
+        Args:
+            wait_time: Boot ON 후 초기화 대기 시간 (초), 기본 3초
+        """
         print("[DLP] 프로젝터 켜기 시도...")
 
         if self.simulation:
@@ -302,7 +307,9 @@ class DLPController:
         if response and len(response) >= 4 and response[2] == 0x00:
             self._projector_on = True
             print("[DLP] ✅ 프로젝터 ON 성공")
-            time.sleep(0.5)  # 안정화 대기
+            # Boot ON 후 프로젝터 초기화 대기 (중요!)
+            print(f"[DLP] 프로젝터 초기화 대기 {wait_time}초...")
+            time.sleep(wait_time)
             return True
 
         # 문자열 명령으로 재시도
@@ -310,18 +317,20 @@ class DLPController:
         if response == "OK":
             self._projector_on = True
             print("[DLP] ✅ 프로젝터 ON 성공 (문자열 명령)")
-            time.sleep(0.5)
+            print(f"[DLP] 프로젝터 초기화 대기 {wait_time}초...")
+            time.sleep(wait_time)
             return True
 
         print("[DLP] ❌ 프로젝터 ON 실패")
         return False
 
     def projector_off(self) -> bool:
-        """프로젝터 끄기"""
+        """프로젝터 끄기 (Boot OFF)"""
         print("[DLP] 프로젝터 끄기 시도...")
 
         if self.simulation:
             self._projector_on = False
+            self._led_on = False
             print("[DLP] ✅ 프로젝터 OFF 성공 (시뮬레이션)")
             return True
 
@@ -330,14 +339,17 @@ class DLPController:
             print("[DLP] ✅ 프로젝터 이미 OFF 상태")
             return True
 
-        # 먼저 LED OFF
+        # 먼저 LED OFF (안전을 위해)
         if self._led_on:
+            print("[DLP] LED ON 상태 → 먼저 LED OFF 실행")
             self.led_off()
+            time.sleep(0.5)  # LED OFF 후 안정화 대기
 
         response = self._send_hex_command(DF10HexCommand.BOOT_OFF)
 
         if response and len(response) >= 4 and response[2] == 0x00:
             self._projector_on = False
+            self._led_on = False  # Boot OFF 시 LED도 OFF됨
             print("[DLP] ✅ 프로젝터 OFF 성공")
             return True
 
@@ -345,6 +357,7 @@ class DLPController:
         response = self._send_command(DF10Command.POWER_OFF)
         if response == "OK":
             self._projector_on = False
+            self._led_on = False
             print("[DLP] ✅ 프로젝터 OFF 성공 (문자열 명령)")
             return True
 
@@ -363,8 +376,18 @@ class DLPController:
 
         Args:
             brightness: 밝기 (91~1023), None이면 현재 설정값 사용
+
+        Note:
+            Boot ON 상태가 아니면 자동으로 Boot ON 실행
         """
         print("[DLP] UV LED 켜기 시도...")
+
+        # Boot ON 상태 확인 - OFF면 자동으로 켜기
+        if not self._projector_on and not self.simulation:
+            print("[DLP] Boot OFF 상태 → 자동 Boot ON 실행")
+            if not self.projector_on():
+                print("[DLP] ❌ 자동 Boot ON 실패, LED ON 취소")
+                return False
 
         # 밝기 설정
         if brightness is not None:
