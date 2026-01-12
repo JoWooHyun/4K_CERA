@@ -181,6 +181,12 @@ class MainWindow(QMainWindow):
         self.dlp = DLPController(simulation=self.simulation)
         self.dlp.initialize()
 
+        # 프로그램 시작 시 Boot ON (팬 시작)
+        # Boot ON 상태는 프로그램 종료 시까지 유지됨
+        if not self.simulation:
+            print("[System] DLP Boot ON (팬 시작)...")
+            self.dlp.projector_on()
+
         print(f"[System] 하드웨어 초기화 완료 (시뮬레이션: {self.simulation})")
     
     def _setup_pages(self):
@@ -568,8 +574,7 @@ class MainWindow(QMainWindow):
         # 1. LED OFF 먼저 (이전 상태가 켜져 있을 수 있음)
         self.dlp.led_off()
 
-        # 2. 프로젝터 ON (LED OFF 상태에서)
-        self.dlp.projector_on()
+        # 2. Boot ON은 프로그램 시작 시 이미 완료됨 (projector_on 호출 불필요)
 
         # 3. 프로젝터 윈도우에 패턴 표시 (LED OFF 상태)
         if self.projector_window is None:
@@ -587,7 +592,7 @@ class MainWindow(QMainWindow):
         """노출 테스트 정지"""
         print("[NVR] 노출 테스트 정지")
         self.dlp.led_off()
-        self.dlp.projector_off()
+        # projector_off() 제거 - Boot ON 상태 유지 (프로그램 종료 시에만 OFF)
 
         if self.projector_window:
             self.projector_window.clear_screen()
@@ -601,8 +606,7 @@ class MainWindow(QMainWindow):
         # 1. LED OFF 먼저 (이전 상태가 켜져 있을 수 있음)
         self.dlp.led_off()
 
-        # 2. 프로젝터 ON (LED OFF 상태에서)
-        self.dlp.projector_on()
+        # 2. Boot ON은 프로그램 시작 시 이미 완료됨 (projector_on 호출 불필요)
 
         # 3. 프로젝터 윈도우에 흰색 화면 표시 (LED OFF 상태)
         if self.projector_window is None:
@@ -621,7 +625,7 @@ class MainWindow(QMainWindow):
         """클리닝 정지"""
         print("[NVR] 클리닝 정지")
         self.dlp.led_off()
-        self.dlp.projector_off()
+        # projector_off() 제거 - Boot ON 상태 유지 (프로그램 종료 시에만 OFF)
 
         if self.projector_window:
             self.projector_window.clear_screen()
@@ -650,15 +654,14 @@ class MainWindow(QMainWindow):
 
         self.projector_window.show_test_image()  # 1.png 표시
 
-        # 프로젝터 ON + LED ON
-        self.dlp.projector_on()
+        # Boot ON은 프로그램 시작 시 이미 완료됨, LED만 ON
         self.dlp.led_on(led_power)
 
     def _setting_led_off(self):
         """Setting 페이지에서 LED OFF"""
         print("[Setting] LED OFF")
         self.dlp.led_off()
-        self.dlp.projector_off()
+        # projector_off() 제거 - Boot ON 상태 유지 (프로그램 종료 시에만 OFF)
 
         if self.projector_window:
             self.projector_window.clear_screen()

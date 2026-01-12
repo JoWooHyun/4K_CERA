@@ -1,8 +1,25 @@
-# 4K_CERA - VERICOM 4K DLP 3D Printer GUI
+# 4K_CERA - VERICOM DF10 DLP 3D Printer GUI
 
-VERICOM 4K DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플리케이션입니다.
+VERICOM DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플리케이션입니다.
 
 > **Note**: 이 프로젝트는 [vgui](https://github.com/JoWooHyun/vgui) (NVR2+ 광원)를 기반으로 DF10 광원용으로 수정되었습니다.
+
+---
+
+## 중요: 해상도 설정
+
+> **DF10 광원은 HDMI 입력으로 1920x1080 @ 60Hz를 사용합니다.**
+>
+> 4K DMD를 사용하지만, HDMI 입력은 반드시 1920x1080이어야 합니다.
+> 제조사(안화광전) 확인: 4K 해상도로 직접 전송하면 안 됩니다.
+
+| 항목 | 값 | 비고 |
+|------|-----|------|
+| **HDMI 입력 해상도** | 1920 x 1080 @ 60Hz | **필수** |
+| DMD 출력 해상도 | 3840 x 2160 (4K) | 내부 스케일링 |
+| 레이어 이미지 해상도 | 1920 x 1080 | HDMI 입력과 동일 |
+
+---
 
 ## 주요 변경사항 (NVR2+ → DF10)
 
@@ -11,10 +28,61 @@ VERICOM 4K DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플�
 | 컨트롤러 | DLPC6421 | DLPC6540 |
 | 통신 방식 | USB I2C (Cypress) | Serial UART (9600bps) |
 | HDMI 입력 해상도 | 1920 x 1080 @ 60Hz | 1920 x 1080 @ 60Hz |
-| DMD 출력 해상도 | 1920 x 1080 (FHD) | 3840 x 2160 (4K) |
 | DMD | 0.47" FHD | 0.47" 4K |
 | LED | 내장 UV | Luminus CBM-25X-UV |
 | 파장 | - | 385nm (DF10E) / 405nm (DF10Z) |
+
+---
+
+## DF10 광원 제어 방식
+
+### Boot ON/OFF vs LED ON/OFF
+
+```
+프로그램 시작
+    ↓
+[Boot ON] ← 팬 시작, 프로젝터 초기화 (1회만 실행)
+    ↓
+┌─────────────────────────────────────┐
+│  Exposure / Clean / Print 반복     │
+│  → LED ON / OFF 만 제어            │
+│  → Boot OFF 하지 않음!             │
+└─────────────────────────────────────┘
+    ↓
+프로그램 종료
+    ↓
+[Boot OFF] ← 팬 정지 (종료 시에만 실행)
+```
+
+**중요**:
+- `Boot ON`은 프로그램 시작 시 1회만 실행
+- `Boot OFF`는 프로그램 종료 시에만 실행
+- Exposure/Clean/Print 작업에서는 `LED ON/OFF`만 제어
+- Boot OFF 후 바로 Boot ON 하면 응답 없음 문제 발생 가능
+
+### HEX 명령어
+
+| 기능 | 명령 (HEX) | 성공 응답 |
+|------|-----------|----------|
+| **Boot ON** (팬 시작) | `2A FA 0D` | `2A FA 00 0D` |
+| **Boot OFF** (팬 정지) | `2A FB 0D` | `2A FB 00 0D` |
+| **LED ON** | `2A 4B 0D` | `2A 4B 00 0D` |
+| **LED OFF** | `2A 47 0D` | `2A 47 00 0D` |
+| 상태 조회 | `2A 53 0D` | LED ON: `2A 4B 00 0D` / OFF: `2A 47 00 0D` |
+
+### 시리얼 통신 설정
+
+| 항목 | 값 |
+|------|-----|
+| Baud rate | 9600 |
+| Data bits | 8 |
+| Stop bit | 1 |
+| Parity | None |
+| Level | **3.3V TTL** |
+
+**주의**: 5V 시스템 사용 시 레벨 시프터 필요
+
+---
 
 ## 시스템 사양
 
@@ -22,91 +90,18 @@ VERICOM 4K DLP 3D 프린터 (DF10 광원)를 위한 터치스크린 GUI 애플�
 |------|------|
 | 프레임워크 | PySide6 (Qt for Python) |
 | GUI 해상도 | 1024 x 600 px |
-| HDMI 입력 해상도 | 1920 x 1080 @ 60Hz |
-| DMD 출력 해상도 | 3840 x 2160 px (4K) |
+| **프로젝터 출력 해상도** | **1920 x 1080 @ 60Hz** |
 | 타겟 디바이스 | 7인치 HDMI Touch LCD |
 | 보드 | CM4 + Manta M8P 2.0 |
 | 프로젝터 | DF10 0.47 4K (DLPC6540) |
 | 모터 제어 | Moonraker API (Klipper) |
 | DLP 통신 | Serial UART (9600bps, 8N1, 3.3V TTL) |
-| 디자인 테마 | Navy (#1E3A5F) + Cyan (#06B6D4) |
 
-## 프린터 특징
+---
 
-- **Top-Down 방식** DLP 프린터
-- **Z축**: 빌드 플레이트 상하 이동
-- **X축**: 블레이드 수평 이동 (레진 평탄화)
-- **LED 노출**: DF10 모듈을 통한 UV LED 제어 (시리얼 통신)
+## 설치 및 실행
 
-## DF10 하드웨어 연결
-
-### 시리얼 통신 핀아웃
-
-| 핀 | 설명 |
-|----|------|
-| TX | DF10 → Host (3.3V TTL) |
-| RX | Host → DF10 (3.3V TTL) |
-| GND | 공통 그라운드 |
-
-**주의**: 3.3V TTL 레벨입니다. 5V 시스템 사용 시 레벨 시프터 필요.
-
-### 권장 USB-TTL 어댑터
-
-- CH340 / CH341
-- CP2102 / CP2104
-- FT232RL / FT232RQ
-- PL2303
-
-## 프로젝트 구조
-
-```
-4K_CERA/
-├── main.py                     # 메인 진입점, 윈도우 관리
-├── test_df10.py                # DF10 시리얼 통신 테스트
-├── components/                 # 재사용 UI 컴포넌트
-│   ├── header.py               # 페이지 헤더
-│   ├── icon_button.py          # 아이콘 버튼
-│   ├── number_dial.py          # ±버튼 숫자 다이얼
-│   └── numeric_keypad.py       # 터치 숫자 키패드
-├── controllers/                # 하드웨어 컨트롤러
-│   ├── motor_controller.py     # Moonraker 모터 제어
-│   ├── dlp_controller.py       # DF10 DLP/LED 제어 (시리얼)
-│   ├── gcode_parser.py         # ZIP/G-code 파싱
-│   ├── settings_manager.py     # 설정 저장/로드
-│   └── theme_manager.py        # 테마 관리
-├── workers/                    # 백그라운드 워커
-│   └── print_worker.py         # 프린팅 시퀀스 실행 (QThread)
-├── windows/                    # 추가 윈도우
-│   └── projector_window.py     # 프로젝터 출력 윈도우
-├── pages/                      # GUI 페이지 (14개)
-│   ├── main_page.py            # 메인 홈
-│   ├── tool_page.py            # 도구 메뉴
-│   ├── manual_page.py          # Z축/X축 수동 제어
-│   ├── print_page.py           # 파일 목록
-│   ├── file_preview_page.py    # 파일 미리보기 + 설정
-│   ├── print_progress_page.py  # 프린트 진행 상황
-│   ├── exposure_page.py        # LED 노출 테스트
-│   ├── clean_page.py           # 트레이 클리닝
-│   ├── system_page.py          # 시스템 설정
-│   ├── setting_page.py         # LED/블레이드 설정
-│   ├── theme_page.py           # 테마 선택
-│   ├── device_info_page.py     # 장치 정보
-│   ├── language_page.py        # 언어 설정
-│   └── service_page.py         # 서비스 정보
-├── styles/                     # 스타일 정의
-│   ├── colors.py               # 컬러 팔레트 (동적 테마)
-│   ├── fonts.py                # 폰트 설정
-│   ├── icons.py                # SVG 아이콘
-│   └── stylesheets.py          # Qt 스타일시트
-└── utils/                      # 유틸리티
-    ├── usb_monitor.py          # USB 모니터링
-    ├── zip_handler.py          # ZIP 파일 처리
-    └── time_formatter.py       # 시간 포맷팅
-```
-
-## 설치
-
-### Raspberry Pi (실제 환경)
+### Raspberry Pi
 
 ```bash
 # 저장소 클론
@@ -119,9 +114,12 @@ source venv/bin/activate
 
 # 의존성 설치
 pip install -r requirements.txt
+
+# 실행
+python main.py --no-sim
 ```
 
-### Windows (개발 환경)
+### Windows (개발용)
 
 ```bash
 git clone https://github.com/JoWooHyun/4K_CERA.git
@@ -129,39 +127,7 @@ cd 4K_CERA
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-## 실행
-
-### 실제 하드웨어 모드
-
-```bash
-python main.py
-```
-
-### 시뮬레이션 모드 (하드웨어 없이 테스트)
-
-```bash
 python main.py --sim
-```
-
-### DF10 시리얼 통신 테스트
-
-```bash
-# 자동 포트 검색
-python test_df10.py
-
-# 특정 포트 지정
-python test_df10.py COM3
-
-# 시뮬레이션 모드
-python test_df10.py --sim
-
-# 대화형 모드
-python test_df10.py -i
-
-# 사용 가능한 포트 목록
-python test_df10.py --list
 ```
 
 ### 실행 옵션
@@ -173,167 +139,126 @@ python test_df10.py --list
 | `--sim` | 시뮬레이션 모드 |
 | `--no-sim` | 실제 하드웨어 모드 |
 
-## DF10 시리얼 명령어
+---
 
-### 문자열 명령어
+## 테스트 도구
 
-| 명령어 | 설명 |
-|--------|------|
-| `CM+LEDE=1` | LED ON |
-| `CM+LEDE=0` | LED OFF |
-| `CM+LEDS=XXX` | 밝기 설정 (91-1023) |
-| `CM+GTMP` | LED 온도 조회 |
-| `CM+SPJF=X` | 화면 플립 (0-3) |
+### LED 제어 테스트 (CLI)
 
-### HEX 명령어
+```bash
+python test/test_led.py
+```
 
-| 명령어 | 설명 |
-|--------|------|
-| `0x2A 0xFA 0x0D` | 프로젝터 ON |
-| `0x2A 0xFB 0x0D` | 프로젝터 OFF |
-| `0x2A 0x47 0x0D` | LED OFF |
-| `0x2A 0x4B 0x0D` | LED ON |
+### LED 제어 테스트 (GUI)
 
-## 프린팅 워크플로우
+```bash
+python test/test_led_gui.py
+```
 
-1. **파일 선택**: USB에서 ZIP 파일 선택
-2. **미리보기**: 썸네일, 레이어 수, 노출 시간 확인
-3. **파라미터 설정**: 블레이드 속도, LED 파워 조절
-4. **프린트 시작**: 자동 시퀀스 실행
-   - Z축/X축 홈 이동
-   - 레진 평탄화
-   - 레이어별 노출 및 이동
-5. **완료 또는 에러**: 자동 정리 (X축 홈 복귀)
+버튼으로 수동 제어:
+- **Projector ON** → Boot ON (팬 시작)
+- **LED ON** → LED 켜기
+- **LED OFF** → LED 끄기
+- **Projector OFF** → Boot OFF (팬 정지)
 
-## 에러 처리
+---
 
-### 이미지 로드 실패
-- 3회 재시도 후 실패 시 프린트 자동 중지
-- 에러 다이얼로그로 사용자 알림
+## 프로젝트 구조
 
-### 모터 에러
-- Z축/X축 이동 실패 시 프린트 자동 중지
-- 안전을 위해 Z축은 현재 위치 유지
+```
+4K_CERA/
+├── main.py                     # 메인 진입점
+├── test/                       # 테스트 도구
+│   ├── test_led.py             # LED 테스트 (CLI)
+│   └── test_led_gui.py         # LED 테스트 (GUI)
+├── controllers/
+│   ├── dlp_controller.py       # DF10 시리얼 통신
+│   └── motor_controller.py     # Moonraker 모터 제어
+├── windows/
+│   └── projector_window.py     # 프로젝터 출력 (1920x1080)
+├── workers/
+│   └── print_worker.py         # 프린팅 시퀀스
+└── pages/                      # GUI 페이지들
+```
 
-### DF10 시리얼 에러
-- 연결 실패 시 자동 포트 재검색
-- 타임아웃 발생 시 재시도
-
-### 정지/에러 시 동작
-1. LED OFF
-2. 프로젝터 OFF
-3. X축만 홈 복귀 (Z축 위치 유지)
-4. 에러 다이얼로그 표시 (에러 시)
-5. 메인 페이지로 이동
+---
 
 ## ZIP 파일 형식
 
-프린트 파일은 다음 구조의 ZIP 파일이어야 합니다:
+### 레이어 이미지 해상도
+
+> **레이어 이미지는 1920 x 1080 해상도로 생성해야 합니다.**
 
 ```
 print_file.zip
-├── run.gcode             # 프린트 파라미터 (필수)
-├── preview.png           # 썸네일 이미지 (필수)
-├── preview_cropping.png  # 크롭된 썸네일 (필수)
-├── 1.png                 # 레이어 1
-├── 2.png                 # 레이어 2
-├── ...
-└── N.png                 # 레이어 N (연속된 숫자)
+├── run.gcode             # 프린트 파라미터
+├── preview.png           # 썸네일
+├── preview_cropping.png  # 크롭된 썸네일
+├── 1.png                 # 레이어 1 (1920x1080)
+├── 2.png                 # 레이어 2 (1920x1080)
+└── ...
 ```
 
-### ZIP 파일 검증 조건
-
-| 조건 | 설명 | 실패 시 메시지 |
-|------|------|----------------|
-| run.gcode 존재 | 필수 파일 | "run.gcode 파일이 없습니다" |
-| 머신 설정 일치 | 아래 5개 값 필수 | "지원하지 않는 프린터 파일입니다" |
-| preview.png 존재 | 필수 파일 | "미리보기 이미지가 없습니다" |
-| preview_cropping.png 존재 | 필수 파일 | "미리보기 이미지가 없습니다" |
-| 레이어 이미지 연속 | 1.png, 2.png... 중간 빠짐 없이 | "레이어 이미지가 손상되었습니다" |
-
-### 필수 머신 설정 (run.gcode 내)
+### run.gcode 필수 설정
 
 ```gcode
-;resolutionX:3840
-;resolutionY:2160
+;resolutionX:1920
+;resolutionY:1080
 ;machineX:124.8
 ;machineY:70.2
 ;machineZ:80
 ```
 
-### run.gcode 파라미터 예시
+---
 
-```gcode
-;totalLayer:100
-;layerHeight:0.05
-;normalExposureTime:3.0
-;bottomLayerExposureTime:30.0
-;bottomLayerCount:8
-;normalLayerLiftHeight:5.0
-;normalLayerLiftSpeed:65
-;estimatedPrintTime:3600
-;resolutionX:3840
-;resolutionY:2160
-;machineX:124.8
-;machineY:70.2
-;machineZ:80
-```
+## 알려진 문제
 
-## 온도 관리
+### Boot OFF 후 응답 없음
 
-DF10은 적절한 온도 관리가 필요합니다:
+**현상**: Boot OFF 후 바로 다음 명령 시 응답 없음
+**원인**: 광원 모듈 내부 상태 초기화 시간 필요
+**해결**: 프로그램 종료 시에만 Boot OFF 호출 (현재 적용됨)
 
-| 부품 | 권장 온도 | 경고 온도 |
-|------|----------|----------|
-| LED MCPCB | < 45°C | > 45°C |
-| DMD 히트싱크 | < 30°C | > 30°C |
+### Wayland 호환성
 
-온도가 높을 경우:
-- 팬 속도 증가 (`set_fan_speed()`)
-- LED 밝기 감소
-- 주변 환기 확인
+라즈베리파이 Wayland 환경에서 프로젝터 윈도우 관련 이슈가 있을 수 있습니다.
+- `close()` 대신 `hide()` 사용
+- 윈도우 재사용 패턴 적용됨
+
+---
 
 ## 개발 가이드
 
-### 블레이드 속도 단위
+### 다음 작업자를 위한 체크리스트
 
-- **UI 표시**: mm/s (10-100)
-- **내부 저장**: mm/s × 50 = Gcode F-value
-- **예시**: 30 mm/s → F1500
+- [ ] HDMI 출력이 1920x1080 @ 60Hz인지 확인
+- [ ] 시리얼 포트가 `/dev/ttyUSB0`로 잡히는지 확인
+- [ ] Boot ON 후 팬이 돌아가는지 확인
+- [ ] LED ON 시 실제로 불이 켜지는지 확인
 
-### 테마 시스템
+### 디버깅
 
-- `ThemeManager` 싱글톤으로 테마 관리
-- `Colors` 메타클래스로 동적 색상 변경
-- `get_*_style()` 함수로 동적 스타일 적용
-- `main.py`에서 다른 모듈 임포트 전 ThemeManager 초기화 (저장된 테마 적용)
-- 테마 변경 시 `_rebuild_pages()`로 모든 페이지 새로 생성
+```bash
+# 시리얼 포트 확인
+ls /dev/ttyUSB*
 
-### 새 개발자를 위한 테마 가이드
+# LED 테스트
+python test/test_led.py
 
-**중요**: 새로운 다이얼로그나 컴포넌트 추가 시:
-
-1. 배경색은 `Colors.WHITE` 대신 `Colors.BG_PRIMARY` 사용
-2. 정적 스타일시트 상수 대신 `get_*_style()` 동적 함수 사용
-3. 인라인 스타일이 많은 경우 `_update_*_style()` 헬퍼 메서드 작성
-
-```python
-# 올바른 예:
-self.setStyleSheet(f"""
-    QDialog {{
-        background-color: {Colors.BG_PRIMARY};  # 테마에 따라 변경됨
-        ...
-    }}
-""")
-
-# 잘못된 예:
-self.setStyleSheet(f"""
-    QDialog {{
-        background-color: {Colors.WHITE};  # 항상 흰색 고정
-        ...
-    }}
-""")
+# 로그 확인
+# [DLP] 프리픽스: 시리얼 통신
+# [Projector] 프리픽스: 프로젝터 윈도우
+# [System] 프리픽스: 시스템 초기화
 ```
+
+---
+
+## 참고 문서
+
+- `DF10 Series Data Sheet D (EN).pdf` - 하드웨어 사양
+- `WI-EL00069 (V07) 0.47 4K Control Interface Description.pdf` - 시리얼 명령어
+
+---
 
 ## 관련 프로젝트
 

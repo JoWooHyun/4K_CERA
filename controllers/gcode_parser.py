@@ -33,9 +33,9 @@ class PrintParameters:
     # 블레이드 설정
     blade_speed: int = 1500
 
-    # 빌드 정보
-    resolutionX: int = 1440
-    resolutionY: int = 2560
+    # 빌드 정보 (DF10: HDMI 입력 해상도 1920x1080)
+    resolutionX: int = 1920
+    resolutionY: int = 1080
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

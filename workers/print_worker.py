@@ -240,8 +240,7 @@ class PrintWorker(QThread):
                 return
             self._run_leveling(job.leveling_cycles, job.blade_speed)
 
-        # 3. 프로젝터 ON
-        self._dlp_projector_on()
+        # 3. Boot ON은 프로그램 시작 시 이미 완료됨 (projector_on 호출 불필요)
 
         # 4. 메인 프린팅 루프
         self._set_status(PrintStatus.PRINTING)
@@ -526,8 +525,7 @@ class PrintWorker(QThread):
         # LED OFF
         self._dlp_led_off()
 
-        # 프로젝터 OFF
-        self._dlp_projector_off()
+        # projector_off() 제거 - Boot ON 상태 유지 (프로그램 종료 시에만 OFF)
 
         # 이미지 클리어
         self.clear_image.emit()
