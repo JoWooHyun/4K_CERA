@@ -316,71 +316,74 @@ def validate_zip_file(zip_path: str) -> ZipValidationResult:
     Returns:
         ZipValidationResult 객체
     """
-    # 필수 머신 설정
-    REQUIRED_MACHINE_SETTINGS = [
-        ";resolutionX:1920",
-        ";resolutionY:1080",
-        ";machineX:124.8",
-        ";machineY:70.2",
-        ";machineZ:80",
-    ]
+    # TODO: 검증 임시 비활성화 - 나중에 활성화
+    # 4K 해상도 및 프린팅 범위 변경으로 인해 임시 비활성화
+    return ZipValidationResult(True, "")
 
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            namelist = z.namelist()
-
-            # 1. run.gcode 파일 존재 확인
-            gcode_file = None
-            for name in namelist:
-                if name.lower() == 'run.gcode':
-                    gcode_file = name
-                    break
-
-            if not gcode_file:
-                return ZipValidationResult(False, "run.gcode 파일이 없습니다")
-
-            # 2. run.gcode 내용에 필수 머신 설정 확인
-            content = z.read(gcode_file).decode('utf-8', errors='ignore')
-
-            for setting in REQUIRED_MACHINE_SETTINGS:
-                if setting not in content:
-                    return ZipValidationResult(False, "지원하지 않는 프린터 파일입니다")
-
-            # 3. preview_cropping.png, preview.png 존재 확인
-            # TODO: 나중에 활성화
-            # namelist_lower = [name.lower() for name in namelist]
-            # if 'preview_cropping.png' not in namelist_lower:
-            #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
-            # if 'preview.png' not in namelist_lower:
-            #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
-
-            # 4. 숫자.png 파일들 연속성 확인
-            layer_numbers = []
-            for name in namelist:
-                filename = os.path.basename(name).lower()
-                # 숫자.png 패턴 (예: 1.png, 2.png, 001.png)
-                match = re.match(r'^(\d+)\.png$', filename)
-                if match:
-                    layer_numbers.append(int(match.group(1)))
-
-            if not layer_numbers:
-                return ZipValidationResult(False, "레이어 이미지가 손상되었습니다")
-
-            # 정렬 후 연속성 확인
-            layer_numbers.sort()
-            expected_start = layer_numbers[0]
-            for i, num in enumerate(layer_numbers):
-                if num != expected_start + i:
-                    return ZipValidationResult(False, "레이어 이미지가 손상되었습니다")
-
-            # 모든 검증 통과
-            return ZipValidationResult(True, "")
-
-    except zipfile.BadZipFile:
-        return ZipValidationResult(False, "ZIP 파일이 손상되었습니다")
-    except Exception as e:
-        print(f"[Parser] ZIP 검증 오류: {e}")
-        return ZipValidationResult(False, "ZIP 파일을 읽을 수 없습니다")
+    # # 필수 머신 설정
+    # REQUIRED_MACHINE_SETTINGS = [
+    #     ";resolutionX:1920",
+    #     ";resolutionY:1080",
+    #     ";machineX:124.8",
+    #     ";machineY:70.2",
+    #     ";machineZ:80",
+    # ]
+    #
+    # try:
+    #     with zipfile.ZipFile(zip_path, 'r') as z:
+    #         namelist = z.namelist()
+    #
+    #         # 1. run.gcode 파일 존재 확인
+    #         gcode_file = None
+    #         for name in namelist:
+    #             if name.lower() == 'run.gcode':
+    #                 gcode_file = name
+    #                 break
+    #
+    #         if not gcode_file:
+    #             return ZipValidationResult(False, "run.gcode 파일이 없습니다")
+    #
+    #         # 2. run.gcode 내용에 필수 머신 설정 확인
+    #         content = z.read(gcode_file).decode('utf-8', errors='ignore')
+    #
+    #         for setting in REQUIRED_MACHINE_SETTINGS:
+    #             if setting not in content:
+    #                 return ZipValidationResult(False, "지원하지 않는 프린터 파일입니다")
+    #
+    #         # 3. preview_cropping.png, preview.png 존재 확인
+    #         # namelist_lower = [name.lower() for name in namelist]
+    #         # if 'preview_cropping.png' not in namelist_lower:
+    #         #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
+    #         # if 'preview.png' not in namelist_lower:
+    #         #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
+    #
+    #         # 4. 숫자.png 파일들 연속성 확인
+    #         layer_numbers = []
+    #         for name in namelist:
+    #             filename = os.path.basename(name).lower()
+    #             # 숫자.png 패턴 (예: 1.png, 2.png, 001.png)
+    #             match = re.match(r'^(\d+)\.png$', filename)
+    #             if match:
+    #                 layer_numbers.append(int(match.group(1)))
+    #
+    #         if not layer_numbers:
+    #             return ZipValidationResult(False, "레이어 이미지가 손상되었습니다")
+    #
+    #         # 정렬 후 연속성 확인
+    #         layer_numbers.sort()
+    #         expected_start = layer_numbers[0]
+    #         for i, num in enumerate(layer_numbers):
+    #             if num != expected_start + i:
+    #                 return ZipValidationResult(False, "레이어 이미지가 손상되었습니다")
+    #
+    #         # 모든 검증 통과
+    #         return ZipValidationResult(True, "")
+    #
+    # except zipfile.BadZipFile:
+    #     return ZipValidationResult(False, "ZIP 파일이 손상되었습니다")
+    # except Exception as e:
+    #     print(f"[Parser] ZIP 검증 오류: {e}")
+    #     return ZipValidationResult(False, "ZIP 파일을 읽을 수 없습니다")
 
 
 # 테스트용
