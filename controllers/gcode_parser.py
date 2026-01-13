@@ -347,11 +347,12 @@ def validate_zip_file(zip_path: str) -> ZipValidationResult:
                     return ZipValidationResult(False, "지원하지 않는 프린터 파일입니다")
 
             # 3. preview_cropping.png, preview.png 존재 확인
-            namelist_lower = [name.lower() for name in namelist]
-            if 'preview_cropping.png' not in namelist_lower:
-                return ZipValidationResult(False, "미리보기 이미지가 없습니다")
-            if 'preview.png' not in namelist_lower:
-                return ZipValidationResult(False, "미리보기 이미지가 없습니다")
+            # TODO: 나중에 활성화
+            # namelist_lower = [name.lower() for name in namelist]
+            # if 'preview_cropping.png' not in namelist_lower:
+            #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
+            # if 'preview.png' not in namelist_lower:
+            #     return ZipValidationResult(False, "미리보기 이미지가 없습니다")
 
             # 4. 숫자.png 파일들 연속성 확인
             layer_numbers = []
