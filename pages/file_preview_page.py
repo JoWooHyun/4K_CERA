@@ -307,14 +307,15 @@ class FilePreviewPage(BasePage):
     
     def __init__(self, parent=None):
         super().__init__("File Preview", show_back=True, parent=parent)
-        
+
         self._file_path = ""
         self._print_params = {}
-        
+
         # 사용자 설정값 (기본값)
         self._blade_speed = 30   # mm/s (실제값 = 표시값 × 50)
         self._led_power = 43     # % (1023 = 100%, 440 = 43%)
-        
+        self._use_mask = False   # MASK 적용 여부
+
         self._setup_content()
     
     def _setup_content(self):
@@ -412,7 +413,18 @@ class FilePreviewPage(BasePage):
         )
         self.row_led_power.value_changed.connect(self._on_led_power_changed)
         right_layout.addWidget(self.row_led_power)
-        
+
+        # MASK 토글 버튼
+        self.btn_mask = QPushButton("MASK OFF")
+        self.btn_mask.setFixedHeight(40)
+        self.btn_mask.setFont(Fonts.body_small())
+        self.btn_mask.setCursor(Qt.PointingHandCursor)
+        self.btn_mask.setCheckable(True)
+        self.btn_mask.setChecked(self._use_mask)
+        self._update_mask_button_style()
+        self.btn_mask.clicked.connect(self._on_mask_toggled)
+        right_layout.addWidget(self.btn_mask)
+
         right_layout.addStretch()
         
         # 버튼들
@@ -483,6 +495,42 @@ class FilePreviewPage(BasePage):
         """LED Power 변경"""
         self._led_power = int(value)
         print(f"[Preview] LED Power: {self._led_power}%")
+
+    def _on_mask_toggled(self):
+        """MASK 토글"""
+        self._use_mask = self.btn_mask.isChecked()
+        self._update_mask_button_style()
+        print(f"[Preview] MASK: {'ON' if self._use_mask else 'OFF'}")
+
+    def _update_mask_button_style(self):
+        """MASK 버튼 스타일 업데이트"""
+        if self._use_mask:
+            self.btn_mask.setText("MASK ON")
+            self.btn_mask.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Colors.CYAN};
+                    color: {Colors.WHITE};
+                    border: 2px solid {Colors.CYAN};
+                    border-radius: 8px;
+                    font-weight: bold;
+                }}
+                QPushButton:pressed {{
+                    background-color: {Colors.CYAN_DARK};
+                }}
+            """)
+        else:
+            self.btn_mask.setText("MASK OFF")
+            self.btn_mask.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Colors.BG_SECONDARY};
+                    color: {Colors.TEXT_SECONDARY};
+                    border: 2px solid {Colors.BORDER};
+                    border-radius: 8px;
+                }}
+                QPushButton:pressed {{
+                    background-color: {Colors.BG_TERTIARY};
+                }}
+            """)
     
     def set_file(self, file_path: str):
         """파일 설정 및 정보 표시"""
@@ -622,6 +670,7 @@ class FilePreviewPage(BasePage):
                 **self._print_params,
                 'bladeSpeed': self._blade_speed * 50,  # mm/s → mm/min 변환
                 'ledPower': self._led_power,
+                'useMask': self._use_mask,  # MASK 적용 여부
             }
             self.start_print.emit(self._file_path, full_params)
     

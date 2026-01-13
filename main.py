@@ -439,6 +439,7 @@ class MainWindow(QMainWindow):
         led_power_percent = params.get('ledPower', 43)   # 퍼센트 (100% = 1023, 43% = 440)
         led_power = int(1023 * led_power_percent / 100)  # 실제 LED 값으로 변환
         leveling_cycles = params.get('levelingCycles', 1)
+        use_mask = params.get('useMask', False)  # MASK 적용 여부
 
         # 추가 파라미터 (run.gcode에서 추출된 값)
         estimated_time = int(params.get('estimatedPrintTime', 0))  # 초 단위
@@ -499,8 +500,10 @@ class MainWindow(QMainWindow):
             params=params,
             blade_speed=blade_speed,
             led_power=led_power,
-            leveling_cycles=leveling_cycles
+            leveling_cycles=leveling_cycles,
+            use_mask=use_mask  # MASK 적용 여부
         )
+        print(f"  - MASK 적용: {use_mask}")
 
     def _on_progress_updated(self, current: int, total: int):
         """프린트 진행률 업데이트"""

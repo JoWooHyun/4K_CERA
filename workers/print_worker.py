@@ -5,12 +5,21 @@ QThread 기반 프린팅 시퀀스 실행
 
 import time
 import zipfile
+import io
 from enum import Enum, auto
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 from PySide6.QtCore import QThread, Signal, QMutex, QWaitCondition
 from PySide6.QtGui import QPixmap, QImage
+
+# PIL for MASK 적용
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("[PrintWorker] PIL 없음 - MASK 기능 비활성화")
 
 # 컨트롤러 임포트
 import sys
@@ -48,6 +57,7 @@ class PrintJob:
     blade_speed: int = 1500
     led_power: int = 440
     leveling_cycles: int = 1
+    use_mask: bool = False  # MASK 적용 여부
 
 
 class PrintWorker(QThread):
@@ -85,6 +95,11 @@ class PrintWorker(QThread):
         self.motor = motor
         self.dlp = dlp
 
+        # MASK 설정
+        self._mask_image: Optional[Image.Image] = None
+        self._use_mask = False
+        self._load_mask()
+
         # 상태
         self._status = PrintStatus.IDLE
         self._is_paused = False
@@ -99,6 +114,84 @@ class PrintWorker(QThread):
 
         # 시뮬레이션 모드
         self.simulation = False
+
+    # ==================== MASK 관리 ====================
+
+    def _load_mask(self):
+        """MASK 이미지 로드"""
+        if not PIL_AVAILABLE:
+            print("[PrintWorker] PIL 없음 - MASK 로드 불가")
+            return
+
+        # MASK 파일 경로 (assets/mask.bmp)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        mask_path = os.path.join(base_dir, "assets", "mask.bmp")
+
+        if not os.path.exists(mask_path):
+            print(f"[PrintWorker] MASK 파일 없음: {mask_path}")
+            return
+
+        try:
+            self._mask_image = Image.open(mask_path)
+            # 그레이스케일로 변환 (알파 채널로 사용)
+            if self._mask_image.mode != 'L':
+                self._mask_image = self._mask_image.convert('L')
+            print(f"[PrintWorker] MASK 로드 완료: {self._mask_image.size}")
+        except Exception as e:
+            print(f"[PrintWorker] MASK 로드 실패: {e}")
+            self._mask_image = None
+
+    def set_use_mask(self, enabled: bool):
+        """MASK 사용 여부 설정"""
+        self._use_mask = enabled
+        print(f"[PrintWorker] MASK 사용: {enabled}")
+
+    @property
+    def mask_available(self) -> bool:
+        """MASK 사용 가능 여부"""
+        return PIL_AVAILABLE and self._mask_image is not None
+
+    def _apply_mask(self, image_data: bytes) -> bytes:
+        """
+        이미지에 MASK 적용
+
+        Args:
+            image_data: 원본 PNG 이미지 데이터
+
+        Returns:
+            MASK가 적용된 PNG 이미지 데이터
+        """
+        if not self._use_mask or self._mask_image is None:
+            return image_data
+
+        try:
+            # PIL 이미지로 변환
+            layer_img = Image.open(io.BytesIO(image_data))
+
+            # RGB로 변환
+            if layer_img.mode != 'RGB':
+                layer_img = layer_img.convert('RGB')
+
+            # MASK 크기 조정 (필요시)
+            mask = self._mask_image
+            if mask.size != layer_img.size:
+                mask = mask.resize(layer_img.size, Image.Resampling.NEAREST)
+
+            # 검정 배경 생성
+            result = Image.new('RGB', layer_img.size, (0, 0, 0))
+
+            # MASK를 알파로 사용하여 합성
+            # MASK 흰색(255) → 원본 표시, 검정(0) → 배경(검정)
+            result = Image.composite(layer_img, result, mask)
+
+            # PNG로 변환
+            output = io.BytesIO()
+            result.save(output, format='PNG')
+            return output.getvalue()
+
+        except Exception as e:
+            print(f"[PrintWorker] MASK 적용 실패: {e}")
+            return image_data
 
     # ==================== 상태 관리 ====================
 
@@ -115,7 +208,7 @@ class PrintWorker(QThread):
 
     def start_print(self, file_path: str, params: Dict[str, Any],
                    blade_speed: int = 1500, led_power: int = 440,
-                   leveling_cycles: int = 1):
+                   leveling_cycles: int = 1, use_mask: bool = False):
         """
         프린트 시작
 
@@ -125,10 +218,15 @@ class PrintWorker(QThread):
             blade_speed: 블레이드 속도 (mm/min)
             led_power: LED 밝기 (91~1023)
             leveling_cycles: 레진 평탄화 횟수
+            use_mask: MASK 적용 여부
         """
         if self.isRunning():
             print("[PrintWorker] 이미 실행 중")
             return
+
+        # MASK 설정
+        self._use_mask = use_mask
+        print(f"[PrintWorker] MASK 적용: {use_mask}")
 
         # PrintParameters 객체 생성
         print_params = PrintParameters()
@@ -142,7 +240,8 @@ class PrintWorker(QThread):
             params=print_params,
             blade_speed=blade_speed,
             led_power=led_power,
-            leveling_cycles=leveling_cycles
+            leveling_cycles=leveling_cycles,
+            use_mask=use_mask
         )
 
         # 플래그 초기화
@@ -430,7 +529,7 @@ class PrintWorker(QThread):
 
     def _show_layer_image(self, zip_path: str, layer_idx: int) -> bool:
         """
-        레이어 이미지 표시
+        레이어 이미지 표시 (MASK 적용 포함)
 
         Args:
             zip_path: ZIP 파일 경로
@@ -446,6 +545,10 @@ class PrintWorker(QThread):
             try:
                 image_data = GCodeParser.get_layer_image(zip_path, layer_idx)
                 if image_data:
+                    # MASK 적용 (활성화된 경우)
+                    if self._use_mask and self._mask_image is not None:
+                        image_data = self._apply_mask(image_data)
+
                     qimage = QImage.fromData(image_data)
                     if qimage.isNull():
                         raise ValueError(f"이미지 데이터 손상 (레이어 {layer_idx})")
