@@ -588,8 +588,8 @@ class MainWindow(QMainWindow):
             self.projector_window.show_on_screen(1)
             self.projector_window.show_test_pattern(pattern)
 
-        # 4. LED ON (패턴이 준비된 후 LED 켜기)
-        self.dlp.led_on(440)
+        # 4. LED ON (화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이)
+        QTimer.singleShot(100, lambda: self.dlp.led_on(440))
 
     def _stop_exposure(self):
         """노출 테스트 정지"""
@@ -620,9 +620,9 @@ class MainWindow(QMainWindow):
             self.projector_window.show_on_screen(1)
             self.projector_window.show_white_screen()
 
-        # 4. LED ON (흰색 화면이 준비된 후 LED 켜기)
+        # 4. LED ON (화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이)
         print(f"  - LED Power: 440")
-        self.dlp.led_on(440)
+        QTimer.singleShot(100, lambda: self.dlp.led_on(440))
 
     def _stop_clean(self):
         """클리닝 정지"""
