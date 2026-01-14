@@ -695,41 +695,46 @@ class MainWindow(QMainWindow):
             self.projector_window.show_on_screen(0)
 
         # MASK 적용 여부에 따라 이미지 생성
-        if mask_enabled and mask_path and os.path.exists(mask_path):
-            # MASK 적용: 흰색 이미지에 MASK 합성
-            from PIL import Image
-            import io
+        try:
+            if mask_enabled and mask_path and os.path.exists(mask_path):
+                # MASK 적용: 흰색 이미지에 MASK 합성
+                from PIL import Image
+                import io
 
-            # 흰색 이미지 생성 (1920x1080)
-            white_img = Image.new('RGB', (1920, 1080), (255, 255, 255))
+                # 흰색 이미지 생성 (1920x1080)
+                white_img = Image.new('RGB', (1920, 1080), (255, 255, 255))
 
-            # MASK 로드
-            mask_img = Image.open(mask_path)
-            if mask_img.mode != 'L':
-                mask_img = mask_img.convert('L')
+                # MASK 로드
+                mask_img = Image.open(mask_path)
+                if mask_img.mode != 'L':
+                    mask_img = mask_img.convert('L')
 
-            # MASK 크기 조정
-            if mask_img.size != white_img.size:
-                mask_img = mask_img.resize(white_img.size, Image.Resampling.NEAREST)
+                # MASK 크기 조정
+                if mask_img.size != white_img.size:
+                    mask_img = mask_img.resize(white_img.size, Image.Resampling.NEAREST)
 
-            # 합성 (흰색 + 검은색 배경, MASK로 블렌딩)
-            black_img = Image.new('RGB', white_img.size, (0, 0, 0))
-            result = Image.composite(white_img, black_img, mask_img)
+                # 합성 (흰색 + 검은색 배경, MASK로 블렌딩)
+                black_img = Image.new('RGB', white_img.size, (0, 0, 0))
+                result = Image.composite(white_img, black_img, mask_img)
 
-            # QPixmap으로 변환
-            buffer = io.BytesIO()
-            result.save(buffer, format='PNG')
-            buffer.seek(0)
+                # QPixmap으로 변환
+                buffer = io.BytesIO()
+                result.save(buffer, format='PNG')
+                buffer.seek(0)
 
-            from PySide6.QtGui import QPixmap, QImage
-            qimage = QImage.fromData(buffer.getvalue())
-            pixmap = QPixmap.fromImage(qimage)
-            self.projector_window.show_image(pixmap)
-            print(f"  - MASK 적용된 흰색 화면 표시")
-        else:
-            # MASK 미적용: 그냥 흰색 전체 화면
+                from PySide6.QtGui import QPixmap, QImage
+                qimage = QImage.fromData(buffer.getvalue())
+                pixmap = QPixmap.fromImage(qimage)
+                self.projector_window.show_image(pixmap)
+                print(f"  - MASK 적용된 흰색 화면 표시")
+            else:
+                # MASK 미적용: 그냥 흰색 전체 화면
+                self.projector_window.show_white_screen()
+                print(f"  - 흰색 전체 화면 표시")
+        except Exception as e:
+            print(f"[Setting] MASK 이미지 처리 오류: {e}")
+            # 오류 발생 시 그냥 흰색 화면 표시
             self.projector_window.show_white_screen()
-            print(f"  - 흰색 전체 화면 표시")
 
         # 화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이
         QTimer.singleShot(100, lambda: self.dlp.led_on(led_power))
