@@ -268,6 +268,8 @@ class MainWindow(QMainWindow):
         self.setting_page.blade_move.connect(self._setting_blade_move)
         self.setting_page.led_power_changed.connect(self._on_led_power_changed)
         self.setting_page.blade_speed_changed.connect(self._on_blade_speed_changed)
+        self.setting_page.mask_led_on.connect(self._mask_led_on)
+        self.setting_page.mask_led_off.connect(self._mask_led_off)
         
         # 매뉴얼 페이지
         self.manual_page.go_back.connect(lambda: self._go_to_page(self.PAGE_TOOL))
@@ -670,6 +672,76 @@ class MainWindow(QMainWindow):
         if self.projector_window:
             self.projector_window.clear_screen()
             self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
+
+    def _mask_led_on(self, mask_enabled: bool, mask_path: str):
+        """MASK 패널에서 LED ON (흰색 전체 화면 + MASK 적용)"""
+        print(f"[Setting] MASK LED ON")
+        print(f"  - MASK 적용: {mask_enabled}")
+        print(f"  - MASK 파일: {mask_path}")
+
+        # LED Power 가져오기 (Setting 페이지의 LED Power 사용)
+        power_percent = self.setting_page.get_led_power()
+        led_power = int(1023 * power_percent / 100)
+        led_power = max(91, min(1023, led_power))
+
+        # 프로젝터 윈도우 생성
+        if self.projector_window is None:
+            self.projector_window = ProjectorWindow(screen_index=1)
+
+        screens = QApplication.screens()
+        if len(screens) > 1:
+            self.projector_window.show_on_screen(1)
+        else:
+            self.projector_window.show_on_screen(0)
+
+        # MASK 적용 여부에 따라 이미지 생성
+        if mask_enabled and mask_path and os.path.exists(mask_path):
+            # MASK 적용: 흰색 이미지에 MASK 합성
+            from PIL import Image
+            import io
+
+            # 흰색 이미지 생성 (1920x1080)
+            white_img = Image.new('RGB', (1920, 1080), (255, 255, 255))
+
+            # MASK 로드
+            mask_img = Image.open(mask_path)
+            if mask_img.mode != 'L':
+                mask_img = mask_img.convert('L')
+
+            # MASK 크기 조정
+            if mask_img.size != white_img.size:
+                mask_img = mask_img.resize(white_img.size, Image.Resampling.NEAREST)
+
+            # 합성 (흰색 + 검은색 배경, MASK로 블렌딩)
+            black_img = Image.new('RGB', white_img.size, (0, 0, 0))
+            result = Image.composite(white_img, black_img, mask_img)
+
+            # QPixmap으로 변환
+            buffer = io.BytesIO()
+            result.save(buffer, format='PNG')
+            buffer.seek(0)
+
+            from PySide6.QtGui import QPixmap, QImage
+            qimage = QImage.fromData(buffer.getvalue())
+            pixmap = QPixmap.fromImage(qimage)
+            self.projector_window.show_image(pixmap)
+            print(f"  - MASK 적용된 흰색 화면 표시")
+        else:
+            # MASK 미적용: 그냥 흰색 전체 화면
+            self.projector_window.show_white_screen()
+            print(f"  - 흰색 전체 화면 표시")
+
+        # 화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이
+        QTimer.singleShot(100, lambda: self.dlp.led_on(led_power))
+
+    def _mask_led_off(self):
+        """MASK 패널에서 LED OFF"""
+        print("[Setting] MASK LED OFF")
+        self.dlp.led_off()
+
+        if self.projector_window:
+            self.projector_window.clear_screen()
+            self.projector_window.hide()
 
     def _setting_blade_home(self):
         """Setting 페이지에서 Blade Home"""

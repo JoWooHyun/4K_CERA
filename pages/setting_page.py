@@ -347,6 +347,8 @@ class MaskPanel(QFrame):
     """MASK 설정 패널"""
 
     mask_changed = Signal(bool, str)  # (enabled, file_path)
+    mask_led_on = Signal(bool, str)  # (mask_enabled, mask_path) - LED ON with mask option
+    mask_led_off = Signal()  # LED OFF
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -354,6 +356,7 @@ class MaskPanel(QFrame):
         self._settings = get_settings()
         self._mask_enabled = self._settings.get_mask_enabled()
         self._mask_path = self._settings.get_mask_file_path()
+        self._led_on = False  # LED 상태 추적
 
         self._setup_ui()
 
@@ -424,6 +427,68 @@ class MaskPanel(QFrame):
         layout.addLayout(btn_layout)
 
         layout.addStretch(1)
+
+        # LED ON/OFF 버튼 (흰색 전체 화면 + MASK 적용 테스트용)
+        led_btn_layout = QHBoxLayout()
+        led_btn_layout.setAlignment(Qt.AlignCenter)
+        led_btn_layout.setSpacing(10)
+
+        self.btn_led_on = QPushButton("LED ON")
+        self.btn_led_on.setFixedSize(90, 45)
+        self.btn_led_on.setCursor(Qt.PointingHandCursor)
+        self.btn_led_on.setFont(Fonts.body())
+        self.btn_led_on.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Colors.NAVY};
+                border: none;
+                border-radius: {Radius.MD}px;
+                color: {Colors.WHITE};
+                font-weight: 600;
+            }}
+            QPushButton:pressed {{
+                background-color: {Colors.NAVY_LIGHT};
+            }}
+        """)
+        self.btn_led_on.clicked.connect(self._on_led_on_click)
+
+        self.btn_led_off = QPushButton("LED OFF")
+        self.btn_led_off.setFixedSize(90, 45)
+        self.btn_led_off.setCursor(Qt.PointingHandCursor)
+        self.btn_led_off.setFont(Fonts.body())
+        self.btn_led_off.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Colors.RED};
+                border: none;
+                border-radius: {Radius.MD}px;
+                color: {Colors.WHITE};
+                font-weight: 600;
+            }}
+            QPushButton:pressed {{
+                background-color: {Colors.RED_LIGHT};
+            }}
+        """)
+        self.btn_led_off.clicked.connect(self._on_led_off_click)
+        self.btn_led_off.hide()  # 초기에는 숨김
+
+        led_btn_layout.addWidget(self.btn_led_on)
+        led_btn_layout.addWidget(self.btn_led_off)
+        layout.addLayout(led_btn_layout)
+
+        layout.addStretch(1)
+
+    def _on_led_on_click(self):
+        """LED ON 클릭"""
+        self._led_on = True
+        self.btn_led_on.hide()
+        self.btn_led_off.show()
+        self.mask_led_on.emit(self._mask_enabled, self._mask_path)
+
+    def _on_led_off_click(self):
+        """LED OFF 클릭"""
+        self._led_on = False
+        self.btn_led_off.hide()
+        self.btn_led_on.show()
+        self.mask_led_off.emit()
 
     def _get_filename_display(self) -> str:
         """파일명 표시용 문자열"""
@@ -538,6 +603,8 @@ class SettingPage(BasePage):
 
     # MASK 시그널
     mask_changed = Signal(bool, str)  # (enabled, file_path)
+    mask_led_on = Signal(bool, str)  # (mask_enabled, mask_path) - MASK 테스트용 LED ON
+    mask_led_off = Signal()  # MASK 테스트용 LED OFF
 
     def __init__(self, parent=None):
         super().__init__("Setting", show_back=True, parent=parent)
@@ -564,6 +631,8 @@ class SettingPage(BasePage):
         # MASK 패널
         self.mask_panel = MaskPanel()
         self.mask_panel.mask_changed.connect(self.mask_changed.emit)
+        self.mask_panel.mask_led_on.connect(self.mask_led_on.emit)
+        self.mask_panel.mask_led_off.connect(self.mask_led_off.emit)
 
         panels_layout.addWidget(self.led_panel)
         panels_layout.addWidget(self.blade_panel)
