@@ -658,7 +658,8 @@ class MainWindow(QMainWindow):
         self.projector_window.show_test_image()  # 1.png 표시
 
         # Boot ON은 프로그램 시작 시 이미 완료됨, LED만 ON
-        self.dlp.led_on(led_power)
+        # 화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이
+        QTimer.singleShot(100, lambda: self.dlp.led_on(led_power))
 
     def _setting_led_off(self):
         """Setting 페이지에서 LED OFF"""
