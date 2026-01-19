@@ -58,6 +58,7 @@ class PrintJob:
     led_power: int = 440
     leveling_cycles: int = 1
     use_mask: bool = False  # MASK 적용 여부
+    mask_path: str = ""  # MASK 파일 경로
 
 
 class PrintWorker(QThread):
@@ -98,7 +99,7 @@ class PrintWorker(QThread):
         # MASK 설정
         self._mask_image: Optional[Image.Image] = None
         self._use_mask = False
-        self._load_mask()
+        self._mask_path = ""
 
         # 상태
         self._status = PrintStatus.IDLE
@@ -117,18 +118,19 @@ class PrintWorker(QThread):
 
     # ==================== MASK 관리 ====================
 
-    def _load_mask(self):
-        """MASK 이미지 로드"""
+    def _load_mask(self, mask_path: str = ""):
+        """MASK 이미지 로드
+
+        Args:
+            mask_path: MASK 파일 경로 (Setting 페이지에서 설정)
+        """
         if not PIL_AVAILABLE:
             print("[PrintWorker] PIL 없음 - MASK 로드 불가")
             return
 
-        # MASK 파일 경로 (assets/mask.bmp)
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        mask_path = os.path.join(base_dir, "assets", "mask.bmp")
-
-        if not os.path.exists(mask_path):
+        if not mask_path or not os.path.exists(mask_path):
             print(f"[PrintWorker] MASK 파일 없음: {mask_path}")
+            self._mask_image = None
             return
 
         try:
@@ -136,7 +138,7 @@ class PrintWorker(QThread):
             # 그레이스케일로 변환 (알파 채널로 사용)
             if self._mask_image.mode != 'L':
                 self._mask_image = self._mask_image.convert('L')
-            print(f"[PrintWorker] MASK 로드 완료: {self._mask_image.size}")
+            print(f"[PrintWorker] MASK 로드 완료: {mask_path} ({self._mask_image.size})")
         except Exception as e:
             print(f"[PrintWorker] MASK 로드 실패: {e}")
             self._mask_image = None
@@ -208,7 +210,8 @@ class PrintWorker(QThread):
 
     def start_print(self, file_path: str, params: Dict[str, Any],
                    blade_speed: int = 1500, led_power: int = 440,
-                   leveling_cycles: int = 1, use_mask: bool = False):
+                   leveling_cycles: int = 1, use_mask: bool = False,
+                   mask_path: str = ""):
         """
         프린트 시작
 
@@ -219,6 +222,7 @@ class PrintWorker(QThread):
             led_power: LED 밝기 (91~1023)
             leveling_cycles: 레진 평탄화 횟수
             use_mask: MASK 적용 여부
+            mask_path: MASK 파일 경로
         """
         if self.isRunning():
             print("[PrintWorker] 이미 실행 중")
@@ -226,7 +230,10 @@ class PrintWorker(QThread):
 
         # MASK 설정
         self._use_mask = use_mask
-        print(f"[PrintWorker] MASK 적용: {use_mask}")
+        self._mask_path = mask_path
+        if use_mask and mask_path:
+            self._load_mask(mask_path)
+        print(f"[PrintWorker] MASK 적용: {use_mask}, 경로: {mask_path}")
 
         # PrintParameters 객체 생성
         print_params = PrintParameters()
@@ -241,7 +248,8 @@ class PrintWorker(QThread):
             blade_speed=blade_speed,
             led_power=led_power,
             leveling_cycles=leveling_cycles,
-            use_mask=use_mask
+            use_mask=use_mask,
+            mask_path=mask_path
         )
 
         # 플래그 초기화

@@ -441,7 +441,9 @@ class MainWindow(QMainWindow):
         led_power_percent = params.get('ledPower', 43)   # 퍼센트 (100% = 1023, 43% = 440)
         led_power = int(1023 * led_power_percent / 100)  # 실제 LED 값으로 변환
         leveling_cycles = params.get('levelingCycles', 1)
-        use_mask = params.get('useMask', False)  # MASK 적용 여부
+        # Setting 페이지의 MASK 설정 사용
+        use_mask = self.setting_page.get_mask_enabled()
+        mask_path = self.setting_page.get_mask_path()
 
         # 추가 파라미터 (run.gcode에서 추출된 값)
         estimated_time = int(params.get('estimatedPrintTime', 0))  # 초 단위
@@ -503,9 +505,10 @@ class MainWindow(QMainWindow):
             blade_speed=blade_speed,
             led_power=led_power,
             leveling_cycles=leveling_cycles,
-            use_mask=use_mask  # MASK 적용 여부
+            use_mask=use_mask,  # MASK 적용 여부 (Setting 페이지 설정)
+            mask_path=mask_path  # MASK 파일 경로
         )
-        print(f"  - MASK 적용: {use_mask}")
+        print(f"  - MASK 적용: {use_mask}, 경로: {mask_path}")
 
     def _on_progress_updated(self, current: int, total: int):
         """프린트 진행률 업데이트"""
@@ -569,12 +572,17 @@ class MainWindow(QMainWindow):
         print(f"[Print] 파일 삭제됨: {file_path}")
     
     def _start_exposure(self, pattern: str, time: float, image_path: str = ""):
-        """노출 테스트 시작"""
+        """노출 테스트 시작 (MASK 적용)"""
         pattern_value = self.exposure_page.get_pattern_value()
+
+        # Setting 페이지의 MASK 설정 가져오기
+        mask_enabled = self.setting_page.get_mask_enabled()
+        mask_path = self.setting_page.get_mask_path()
 
         print(f"[NVR] 노출 테스트 시작")
         print(f"  - 패턴: {pattern} (0x{pattern_value:02X})")
         print(f"  - 시간: {time}초")
+        print(f"  - MASK 적용: {mask_enabled}, 경로: {mask_path}")
         if pattern == "logo" and image_path:
             print(f"  - 이미지: {image_path}")
 
@@ -590,11 +598,64 @@ class MainWindow(QMainWindow):
         screens = QApplication.screens()
         if len(screens) > 1:
             self.projector_window.show_on_screen(1)
-            # logo 패턴이고 이미지 경로가 있으면 해당 이미지 표시
-            if pattern == "logo" and image_path and os.path.exists(image_path):
-                self.projector_window.show_test_image(image_path)
-            else:
-                self.projector_window.show_test_pattern(pattern)
+
+            # MASK 적용 여부에 따라 이미지 표시
+            try:
+                if mask_enabled and mask_path and os.path.exists(mask_path):
+                    # MASK 적용
+                    from PIL import Image
+                    import io
+
+                    # 패턴 이미지 생성
+                    if pattern == "logo" and image_path and os.path.exists(image_path):
+                        base_img = Image.open(image_path).convert('RGB')
+                    elif pattern == "checker":
+                        base_img = self._create_checker_pattern()
+                    elif pattern == "ramp":
+                        base_img = self._create_ramp_pattern()
+                    else:
+                        base_img = Image.new('RGB', (1920, 1080), (255, 255, 255))
+
+                    # 1920x1080으로 리사이즈
+                    if base_img.size != (1920, 1080):
+                        base_img = base_img.resize((1920, 1080), Image.Resampling.NEAREST)
+
+                    # MASK 로드
+                    mask_img = Image.open(mask_path)
+                    if mask_img.mode != 'L':
+                        mask_img = mask_img.convert('L')
+
+                    # MASK 크기 조정
+                    if mask_img.size != base_img.size:
+                        mask_img = mask_img.resize(base_img.size, Image.Resampling.NEAREST)
+
+                    # 합성 (base_img + 검은색 배경, MASK로 블렌딩)
+                    black_img = Image.new('RGB', base_img.size, (0, 0, 0))
+                    result = Image.composite(base_img, black_img, mask_img)
+
+                    # QPixmap으로 변환
+                    buffer = io.BytesIO()
+                    result.save(buffer, format='PNG')
+                    buffer.seek(0)
+
+                    from PySide6.QtGui import QPixmap, QImage
+                    qimage = QImage.fromData(buffer.getvalue())
+                    pixmap = QPixmap.fromImage(qimage)
+                    self.projector_window.show_image(pixmap)
+                    print(f"  - MASK 적용된 패턴 표시")
+                else:
+                    # MASK 미적용: 기존 로직
+                    if pattern == "logo" and image_path and os.path.exists(image_path):
+                        self.projector_window.show_test_image(image_path)
+                    else:
+                        self.projector_window.show_test_pattern(pattern)
+            except Exception as e:
+                print(f"[Exposure] MASK 이미지 처리 오류: {e}")
+                # 오류 발생 시 기존 로직
+                if pattern == "logo" and image_path and os.path.exists(image_path):
+                    self.projector_window.show_test_image(image_path)
+                else:
+                    self.projector_window.show_test_pattern(pattern)
 
         # 4. LED ON (화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이)
         # logo 패턴은 Setting의 LED Power 사용, 나머지는 440 고정
@@ -653,15 +714,20 @@ class MainWindow(QMainWindow):
     # ==================== Setting 페이지 제어 ====================
 
     def _setting_led_on(self, power_percent: int):
-        """Setting 페이지에서 LED ON"""
+        """Setting 페이지에서 LED ON (MASK 적용)"""
         # 퍼센트를 NVM 값으로 변환 (100% = 1023)
         led_power = int(1023 * power_percent / 100)
         led_power = max(91, min(1023, led_power))  # 범위 제한
 
+        # Setting 페이지의 MASK 설정 가져오기
+        mask_enabled = self.setting_page.get_mask_enabled()
+        mask_path = self.setting_page.get_mask_path()
+
         print(f"[Setting] LED ON 시도")
         print(f"  - Power: {power_percent}% (NVM: {led_power})")
+        print(f"  - MASK 적용: {mask_enabled}, 경로: {mask_path}")
 
-        # 프로젝터 윈도우에 1.png 표시
+        # 프로젝터 윈도우 생성
         if self.projector_window is None:
             self.projector_window = ProjectorWindow(screen_index=1)
 
@@ -671,7 +737,58 @@ class MainWindow(QMainWindow):
         else:
             self.projector_window.show_on_screen(0)
 
-        self.projector_window.show_test_image()  # 1.png 표시
+        # MASK 적용 여부에 따라 이미지 표시
+        try:
+            if mask_enabled and mask_path and os.path.exists(mask_path):
+                # MASK 적용: 1.png에 MASK 합성
+                from PIL import Image
+                import io
+
+                # 1.png 로드
+                test_image_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "assets", "1.png"
+                )
+                if os.path.exists(test_image_path):
+                    base_img = Image.open(test_image_path).convert('RGB')
+                else:
+                    # 1.png 없으면 흰색 이미지
+                    base_img = Image.new('RGB', (1920, 1080), (255, 255, 255))
+
+                # 1920x1080으로 리사이즈
+                if base_img.size != (1920, 1080):
+                    base_img = base_img.resize((1920, 1080), Image.Resampling.NEAREST)
+
+                # MASK 로드
+                mask_img = Image.open(mask_path)
+                if mask_img.mode != 'L':
+                    mask_img = mask_img.convert('L')
+
+                # MASK 크기 조정
+                if mask_img.size != base_img.size:
+                    mask_img = mask_img.resize(base_img.size, Image.Resampling.NEAREST)
+
+                # 합성 (base_img + 검은색 배경, MASK로 블렌딩)
+                black_img = Image.new('RGB', base_img.size, (0, 0, 0))
+                result = Image.composite(base_img, black_img, mask_img)
+
+                # QPixmap으로 변환
+                buffer = io.BytesIO()
+                result.save(buffer, format='PNG')
+                buffer.seek(0)
+
+                from PySide6.QtGui import QPixmap, QImage
+                qimage = QImage.fromData(buffer.getvalue())
+                pixmap = QPixmap.fromImage(qimage)
+                self.projector_window.show_image(pixmap)
+                print(f"  - MASK 적용된 테스트 이미지 표시")
+            else:
+                # MASK 미적용: 1.png 그대로 표시
+                self.projector_window.show_test_image()
+                print(f"  - 테스트 이미지 표시 (MASK 미적용)")
+        except Exception as e:
+            print(f"[Setting] MASK 이미지 처리 오류: {e}")
+            # 오류 발생 시 그냥 테스트 이미지 표시
+            self.projector_window.show_test_image()
 
         # Boot ON은 프로그램 시작 시 이미 완료됨, LED만 ON
         # 화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이
@@ -863,6 +980,35 @@ class MainWindow(QMainWindow):
             if self.kiosk_manager.is_enabled:
                 self.setCursor(Qt.BlankCursor)
             print("[Admin] 일반 모드 - 단축키 차단")
+
+    # ==================== 패턴 생성 헬퍼 ====================
+
+    def _create_checker_pattern(self):
+        """체커보드 패턴 이미지 생성 (PIL Image)"""
+        from PIL import Image
+        width, height = 1920, 1080
+        cell_size = 100
+        img = Image.new('RGB', (width, height), (0, 0, 0))
+
+        for y in range(0, height, cell_size):
+            for x in range(0, width, cell_size):
+                if (x // cell_size + y // cell_size) % 2 == 0:
+                    for py in range(y, min(y + cell_size, height)):
+                        for px in range(x, min(x + cell_size, width)):
+                            img.putpixel((px, py), (255, 255, 255))
+        return img
+
+    def _create_ramp_pattern(self):
+        """그라데이션 패턴 이미지 생성 (PIL Image)"""
+        from PIL import Image
+        width, height = 1920, 1080
+        img = Image.new('RGB', (width, height))
+
+        for x in range(width):
+            gray = 255 - int((x / width) * 255)  # 왼쪽 밝음 → 오른쪽 어두움
+            for y in range(height):
+                img.putpixel((x, y), (gray, gray, gray))
+        return img
 
     def closeEvent(self, event):
         """앱 종료 시"""
