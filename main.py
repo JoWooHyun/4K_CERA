@@ -591,7 +591,15 @@ class MainWindow(QMainWindow):
             self.projector_window.show_test_pattern(pattern)
 
         # 4. LED ON (화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이)
-        QTimer.singleShot(100, lambda: self.dlp.led_on(440))
+        # logo 패턴은 Setting의 LED Power 사용, 나머지는 440 고정
+        if pattern == "logo":
+            power_percent = self.setting_page.get_led_power()
+            led_power = int(1023 * power_percent / 100)
+            led_power = max(91, min(1023, led_power))
+            print(f"  - LED Power: {power_percent}% (NVM: {led_power})")
+            QTimer.singleShot(100, lambda: self.dlp.led_on(led_power))
+        else:
+            QTimer.singleShot(100, lambda: self.dlp.led_on(440))
 
     def _stop_exposure(self):
         """노출 테스트 정지"""
