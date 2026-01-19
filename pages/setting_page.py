@@ -27,6 +27,7 @@ class LEDPowerPanel(QFrame):
     power_changed = Signal(int)  # 파워 값 변경
     led_on = Signal(int)         # LED ON (파워 값 전달)
     led_off = Signal()           # LED OFF
+    full_black = Signal(int)     # Full Black (파워 값 전달) - Stray Light 측정용
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -78,18 +79,39 @@ class LEDPowerPanel(QFrame):
 
         layout.addStretch(1)
 
-        # ON/OFF 토글 버튼 (하나만 표시)
+        # ON/OFF 토글 버튼 + Full Black 버튼
         btn_layout = QHBoxLayout()
         btn_layout.setAlignment(Qt.AlignCenter)
+        btn_layout.setSpacing(10)
 
         self.btn_toggle = QPushButton("ON")
-        self.btn_toggle.setFixedSize(120, 50)
+        self.btn_toggle.setFixedSize(100, 50)
         self.btn_toggle.setCursor(Qt.PointingHandCursor)
         self.btn_toggle.setFont(Fonts.h3())
         self.btn_toggle.clicked.connect(self._on_toggle_click)
         self._update_toggle_style()
 
+        # Full Black 버튼 (Stray Light 측정용)
+        self.btn_full_black = QPushButton("BLACK")
+        self.btn_full_black.setFixedSize(100, 50)
+        self.btn_full_black.setCursor(Qt.PointingHandCursor)
+        self.btn_full_black.setFont(Fonts.h3())
+        self.btn_full_black.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {Colors.NAVY};
+                border: none;
+                border-radius: {Radius.MD}px;
+                color: {Colors.WHITE};
+                font-weight: 600;
+            }}
+            QPushButton:pressed {{
+                background-color: #1E3A5F;
+            }}
+        """)
+        self.btn_full_black.clicked.connect(self._on_full_black_click)
+
         btn_layout.addWidget(self.btn_toggle)
+        btn_layout.addWidget(self.btn_full_black)
         layout.addLayout(btn_layout)
 
         layout.addStretch(1)
@@ -174,6 +196,10 @@ class LEDPowerPanel(QFrame):
             self._is_on = True
             self.led_on.emit(self._power_value)
         self._update_toggle_style()
+
+    def _on_full_black_click(self):
+        """Full Black 버튼 클릭 - Stray Light 측정용 전체 검정 화면"""
+        self.full_black.emit(self._power_value)
 
     def get_power(self) -> int:
         """현재 파워 값 반환"""
@@ -595,6 +621,7 @@ class SettingPage(BasePage):
     led_power_changed = Signal(int)
     led_on = Signal(int)  # 파워 값 전달
     led_off = Signal()
+    full_black = Signal(int)  # Full Black (파워 값 전달) - Stray Light 측정용
 
     # Blade 시그널
     blade_speed_changed = Signal(int)
@@ -621,6 +648,7 @@ class SettingPage(BasePage):
         self.led_panel.power_changed.connect(self.led_power_changed.emit)
         self.led_panel.led_on.connect(self.led_on.emit)
         self.led_panel.led_off.connect(self.led_off.emit)
+        self.led_panel.full_black.connect(self.full_black.emit)
 
         # Blade 패널
         self.blade_panel = BladePanel()

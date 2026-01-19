@@ -264,6 +264,7 @@ class MainWindow(QMainWindow):
         self.setting_page.go_back.connect(lambda: self._go_to_page(self.PAGE_TOOL))
         self.setting_page.led_on.connect(self._setting_led_on)
         self.setting_page.led_off.connect(self._setting_led_off)
+        self.setting_page.full_black.connect(self._setting_full_black)
         self.setting_page.blade_home.connect(self._setting_blade_home)
         self.setting_page.blade_move.connect(self._setting_blade_move)
         self.setting_page.led_power_changed.connect(self._on_led_power_changed)
@@ -803,6 +804,46 @@ class MainWindow(QMainWindow):
         if self.projector_window:
             self.projector_window.clear_screen()
             self.projector_window.hide()  # close() 대신 hide() 사용 (Wayland 호환성)
+
+    def _setting_full_black(self, power_percent: int):
+        """Setting 페이지에서 Full Black (Stray Light 측정용)"""
+        # 퍼센트를 NVM 값으로 변환 (100% = 1023)
+        led_power = int(1023 * power_percent / 100)
+        led_power = max(91, min(1023, led_power))  # 범위 제한
+
+        print(f"[Setting] Full Black (Stray Light 측정)")
+        print(f"  - Power: {power_percent}% (NVM: {led_power})")
+
+        # 프로젝터 윈도우 생성
+        if self.projector_window is None:
+            self.projector_window = ProjectorWindow(screen_index=1)
+
+        screens = QApplication.screens()
+        if len(screens) > 1:
+            self.projector_window.show_on_screen(1)
+        else:
+            self.projector_window.show_on_screen(0)
+
+        # 전체 검정 화면 표시
+        from PIL import Image
+        import io
+        from PySide6.QtGui import QPixmap, QImage
+
+        # 검정 이미지 생성 (1920x1080)
+        black_img = Image.new('RGB', (1920, 1080), (0, 0, 0))
+
+        # QPixmap으로 변환
+        buffer = io.BytesIO()
+        black_img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        qimage = QImage.fromData(buffer.getvalue())
+        pixmap = QPixmap.fromImage(qimage)
+        self.projector_window.show_image(pixmap)
+        print(f"  - Full Black 화면 표시")
+
+        # 화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이
+        QTimer.singleShot(100, lambda: self.dlp.led_on(led_power))
 
     def _mask_led_on(self, mask_enabled: bool, mask_path: str):
         """MASK 패널에서 LED ON (흰색 전체 화면 + MASK 적용)"""
