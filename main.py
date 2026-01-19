@@ -568,13 +568,15 @@ class MainWindow(QMainWindow):
         """파일 삭제됨"""
         print(f"[Print] 파일 삭제됨: {file_path}")
     
-    def _start_exposure(self, pattern: str, time: float):
+    def _start_exposure(self, pattern: str, time: float, image_path: str = ""):
         """노출 테스트 시작"""
         pattern_value = self.exposure_page.get_pattern_value()
 
         print(f"[NVR] 노출 테스트 시작")
         print(f"  - 패턴: {pattern} (0x{pattern_value:02X})")
         print(f"  - 시간: {time}초")
+        if pattern == "logo" and image_path:
+            print(f"  - 이미지: {image_path}")
 
         # 1. LED OFF 먼저 (이전 상태가 켜져 있을 수 있음)
         self.dlp.led_off()
@@ -588,7 +590,11 @@ class MainWindow(QMainWindow):
         screens = QApplication.screens()
         if len(screens) > 1:
             self.projector_window.show_on_screen(1)
-            self.projector_window.show_test_pattern(pattern)
+            # logo 패턴이고 이미지 경로가 있으면 해당 이미지 표시
+            if pattern == "logo" and image_path and os.path.exists(image_path):
+                self.projector_window.show_test_image(image_path)
+            else:
+                self.projector_window.show_test_pattern(pattern)
 
         # 4. LED ON (화면 렌더링 완료 후 LED 켜기 - 100ms 딜레이)
         # logo 패턴은 Setting의 LED Power 사용, 나머지는 440 고정

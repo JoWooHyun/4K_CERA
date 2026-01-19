@@ -3,7 +3,8 @@ VERICOM DLP 3D Printer GUI - Exposure Page
 NVR2+ 테스트 패턴 노출
 """
 
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton
+import os
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog
 from PySide6.QtCore import Signal, Qt, QTimer, QSize
 
 from pages.base_page import BasePage
@@ -67,23 +68,24 @@ class PatternIconButton(QPushButton):
 
 class ExposurePage(BasePage):
     """노출 테스트 페이지"""
-    
+
     # 노출 시작/정지 시그널
-    exposure_start = Signal(str, float)  # pattern, time
+    exposure_start = Signal(str, float, str)  # pattern, time, image_path (logo용)
     exposure_stop = Signal()
-    
+
     def __init__(self, parent=None):
         super().__init__("Exposure", show_back=True, parent=parent)
-        
+
         self._current_pattern = "checker"  # 기본: 체스판
         self._exposure_time = 5  # 초 단위 (정수)
         self._is_running = False
-        
+        self._logo_image_path = ""  # logo 패턴용 이미지 경로
+
         # 타이머 (자동 정지용)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._on_timer_done)
-        
+
         self._setup_content()
     
     def _setup_content(self):
@@ -107,7 +109,7 @@ class ExposurePage(BasePage):
         self.btn_checker.clicked.connect(lambda: self._select_pattern("checker"))
 
         self.btn_logo = PatternIconButton(Icons.PATTERN_LOGO)
-        self.btn_logo.clicked.connect(lambda: self._select_pattern("logo"))
+        self.btn_logo.clicked.connect(self._on_logo_click)
 
         row1.addStretch()
         row1.addWidget(self.btn_ramp)
@@ -200,6 +202,23 @@ class ExposurePage(BasePage):
         self.btn_ramp.set_selected(pattern == "ramp")
         self.btn_checker.set_selected(pattern == "checker")
         self.btn_logo.set_selected(pattern == "logo")
+
+    def _on_logo_click(self):
+        """logo 버튼 클릭 - 파일 선택 다이얼로그"""
+        if self._is_running:
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.window(),
+            "노출 이미지 선택",
+            "",
+            "Image Files (*.png *.jpg *.bmp);;All Files (*)"
+        )
+
+        if file_path and os.path.exists(file_path):
+            self._logo_image_path = file_path
+            self._select_pattern("logo")
+            print(f"[Exposure] 이미지 선택: {file_path}")
     
     def _show_time_dial(self):
         """시간 설정 다이얼 표시"""
@@ -232,8 +251,8 @@ class ExposurePage(BasePage):
         # 타이머 시작 (자동 정지)
         self._timer.start(int(self._exposure_time * 1000))
 
-        # 시그널 발생
-        self.exposure_start.emit(self._current_pattern, self._exposure_time)
+        # 시그널 발생 (logo 패턴은 이미지 경로도 전달)
+        self.exposure_start.emit(self._current_pattern, self._exposure_time, self._logo_image_path)
     
     def _on_stop(self):
         """노출 정지"""
